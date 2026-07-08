@@ -1,6 +1,6 @@
 # Building Applications with the Packaged Python Pattern
 
-> **Packaged Python Pattern — v1.2** · updated 2026-07-06. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Packaged Python Pattern — v1.3** · updated 2026-07-08. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 A guide for building self-contained Python applications that run on the user's own computer — no server, no hosting, no installer, and no Python setup for the person receiving the app.
 
@@ -10,7 +10,7 @@ A guide for building self-contained Python applications that run on the user's o
 
 ## Executive Summary
 
-This pattern packages a complete application as a **single Python file** that anyone at Contoso can run with one command. It relies on two pieces of modern Python tooling:
+This pattern packages a complete application as a **single Python file** that anyone at your organization can run with one command. It relies on two pieces of modern Python tooling:
 
 **uv** is a fast Python runtime and package manager. Once installed on a machine, `uv run app.py` downloads the right Python version, resolves the app's dependencies, builds an isolated environment, and runs the script — automatically, on every machine, with zero manual setup.
 
@@ -107,7 +107,7 @@ If a job isn't covered, ask before adding a library. The full prohibited list (w
 
 Before writing code, answer: where does the data live, and where do the results go?
 
-- **Data the app itself creates and owns** (state, results, shared team records) — **SharePoint Lists are the preferred store**, following the [SharePoint App Pattern](SHAREPOINT_APP_PATTERN.md). A SQL Server database is **not** the preferred home for app-owned data: provisioning tables and permissions requires DBA involvement, while any Contoso user can create a SharePoint site and lists today, self-service. See SharePoint Lists for App Data below.
+- **Data the app itself creates and owns** (state, results, shared team records) — **SharePoint Lists are the preferred store**, following the [SharePoint App Pattern](SHAREPOINT_APP_PATTERN.md). A SQL Server database is **not** the preferred home for app-owned data: provisioning tables and permissions requires DBA involvement, while any user in your organization can create a SharePoint site and lists today, self-service. See SharePoint Lists for App Data below.
 - Reading or writing **existing SQL Server / Azure SQL data** — connect with the user's identity via `mssql-python`; the app uses the user's existing database permissions. Use SQL Server to reach data that already lives there, not to store new app data.
 - Reading **DB2** — never directly. DB2 tables are reached through the IT-managed SQL Server linked server, queried as if they were SQL Server objects (or via `OPENQUERY` for pass-through).
 - Reading or writing **M365 content** (mail, SharePoint, profiles) — Microsoft Graph through `msgraph-sdk`.
@@ -153,6 +153,8 @@ Interactive Entra sign-in (Graph, SharePoint REST) requires an app registration.
 | Object ID | `<your-entra-object-id>` |
 | Redirect URI | `http://localhost` |
 
+**The common scopes are already consented — a typical app needs nothing from IT.** As of 2026-07-08 the registration is provisioned for the SharePoint list read/write path (verified against the live site) and common Microsoft Graph reads (profile, mail, calendar, presence). Build on those and there is no IT step at all.
+
 **Releases never touch this registration.** The registration is tenant-side state keyed by the client ID; distributing a new `app.py` changes nothing in Entra, so shipping a release does not re-trigger any enterprise app registration process. The only event that involves IT is requesting a **delegated scope that has not yet been admin-consented** — a one-time grant per new scope (handled quickly), not per release. Keep the app on already-consented scopes and releases are entirely self-service.
 
 ### SQL Server Access
@@ -175,7 +177,7 @@ conn = connect(
 )
 
 cur = conn.cursor()
-cur.execute("SELECT ... FROM dbo.Orders WHERE StatusId = ?", [status_id])
+cur.execute("SELECT ... FROM Claims.Claim WHERE StatusId = ?", [status_id])
 ```
 
 Add `TrustServerCertificate=yes` only for servers with self-signed certificates (common on dev servers); omit it in production.
@@ -285,7 +287,7 @@ Why it works this way: a freshly installed uv is not on the *current* session's 
 
 Ad-hoc copying works for handing an app to one colleague; for a *team* of users it drifts — nobody knows which copy is current. The fix is a SharePoint site as the single distribution point:
 
-- **Site creation is open at Contoso** — any user can create a SharePoint site, no ticket required. Create one (or reuse the team's existing site), and put the release folder (`app.py`, `launch.cmd`, `README.md`) in a document library.
+- **Site creation is open at your organization** — any user can create a SharePoint site, no ticket required. Start from the SharePoint home page ([contoso.sharepoint.com/_layouts/15/sharepoint.aspx](https://contoso.sharepoint.com/_layouts/15/sharepoint.aspx)) → **+ Create site**, and pick a **Communication site** with the **Blank** template — not a Team site. A communication site is built for broadcasting to a broad audience (a few people publish, many consume), which is exactly the shape of a release channel; a Team site spins up an M365 group, shared mailbox, and Teams membership you don't need here. Then put the release folder (`app.py`, `launch.cmd`, `README.md`) in a document library. (Reuse the team's existing site if one already fits.)
 - **Publish a `version.json` alongside the folder** so both people and the app itself can tell what's current:
 
 ```json
@@ -311,7 +313,7 @@ If a requirement includes any of these, the app needs IT-supported hosting, not 
 - Listening sockets, webhooks, or any inbound network exposure
 - Multi-user concurrent writes beyond what SharePoint Lists or SQL handle natively
 - Data classified above Internal — PHI, payment data, any regulated data
-- Distribution outside Contoso
+- Distribution outside your organization
 - Modifying Active Directory, Entra ID, or Intune state
 
 ---

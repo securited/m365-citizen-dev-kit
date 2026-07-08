@@ -1,6 +1,6 @@
 # Building Automation with the Worker Pool Pattern
 
-> **Worker Pool Pattern — v1.1** · updated 2026-07-06. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Worker Pool Pattern — v1.2** · updated 2026-07-08. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 A guide for running scheduled and background automation — "server work" — with **no server, no service account, and no premium licensing**, by combining two patterns you already know: a [Packaged Python](PACKAGED_PYTHON_PATTERN.aspx) app on each participant's machine, coordinated through [SharePoint](SHAREPOINT_APP_PATTERN.aspx) lists.
 
@@ -111,7 +111,7 @@ Every implementation must be able to demonstrate its core guarantee on demand: f
 ## Deployment
 
 - The worker folder and status page deploy like any other sample via the platform deploy script; the status page is an `.aspx` shell, so the [custom-script enablement window](SHAREPOINT_APP_PATTERN.aspx) applies to it (not to the worker folder).
-- The coordination lists are *not* deployed — the first worker to connect creates them. An owner with list-creation rights should connect once before wide rollout.
+- The coordination lists are *not* deployed — the first worker to connect creates them. An owner with list-creation rights should connect once before wide rollout. The shared app registration is consented for the manage scope this needs (`Sites.Manage.All`), so provisioning is a permissions question about the *user*, not the registration — the connecting owner needs list-creation rights on the site.
 - Job output files that workers overwrite at runtime must be registered as **seed-only** in the deploy script (`$SeedOnlyFiles`): uploaded when missing, never overwritten by a redeploy.
 - **Distributing the worker to pool participants** follows the [Packaged Python pattern's team-distribution guidance](PACKAGED_PYTHON_PATTERN.aspx): the same SharePoint site that hosts the coordination lists and status page hosts the worker's release folder and a `version.json`. The worker checks it at startup (non-blocking) and the dashboard surfaces "a newer version is available," so the pool converges on the current release instead of running a mix of copies.
 

@@ -1,6 +1,6 @@
 # Claude Code — Worker Pool Pattern: Project Prompt
 
-> **Worker Pool Pattern — v1.1** · updated 2026-07-06. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Worker Pool Pattern — v1.2** · updated 2026-07-08. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 Copy the block below as your first message when starting a new worker-pool project. **Attach [PACKAGED_PYTHON_PROMPT.md](PACKAGED_PYTHON_PROMPT.md) with the same message** — this pattern builds on the Packaged Python pattern, and every rule there is binding too. Customize the bracketed sections and replace every `<...>` placeholder.
 

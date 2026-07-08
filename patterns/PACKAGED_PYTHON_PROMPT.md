@@ -1,8 +1,8 @@
 # Claude Code — Packaged Python Pattern: Project Prompt
 
-> **Packaged Python Pattern — v1.2** · updated 2026-07-06. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Packaged Python Pattern — v1.3** · updated 2026-07-08. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
-Copy and paste the block below as your first message when starting a new Packaged Python project. Customize the bracketed sections for your specific project, and replace every `<...>` placeholder with your organization's specific values (SQL Server hostname, SharePoint site URLs, etc). The Entra tenant and app registration IDs are already filled in — they are the same for every app.
+Copy and paste the block below as your first message when starting a new Packaged Python project. Customize the bracketed sections for your specific project, and replace every `<...>` placeholder with your organization's values (SQL Server hostname, SharePoint site URLs, etc). The Entra tenant and app registration IDs are already filled in — they are the same for every app.
 
 ---
 
@@ -164,7 +164,7 @@ client = GraphServiceClient(credentials=credential, scopes=["<scope>"])
 
 On Windows the persistent cache is encrypted with DPAPI under the user's profile — no secrets are written in plain text.
 
-All packaged Python apps share one IT-owned app registration — **Contoso EUDA Applications** (client ID `<your-entra-client-id>`, tenant ID `<your-tenant-id>`, redirect URI `http://localhost` already configured). Never create a new app registration from this project. Releases of the app never touch this registration — distributing a new `app.py` changes nothing in Entra. The only event that involves IT is requesting a delegated scope that has not yet been admin-consented (a one-time grant per scope, handled quickly). Prefer scopes that are already consented.
+All packaged Python apps share one IT-owned app registration — **Contoso EUDA Applications** (client ID `<your-entra-client-id>`, tenant ID `<your-tenant-id>`, redirect URI `http://localhost` already configured). Never create a new app registration from this project. It is already consented for the SharePoint list read/write path and common Graph reads (profile, mail, calendar, presence), so a typical app needs nothing from IT. Releases of the app never touch this registration — distributing a new `app.py` changes nothing in Entra. The only event that involves IT is requesting a delegated scope that has not yet been admin-consented (a one-time grant per scope, handled quickly). Prefer scopes that are already consented.
 
 ## Pattern C (Streamlit) specifics
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
         sys.exit(stcli.main())
 ```
 
-- The first-run hygiene block above is part of the canonical bootstrap — include it verbatim. Streamlit's email prompt, usage telemetry, and Deploy button (its external hosting service) are never shown to Contoso users.
+- The first-run hygiene block above is part of the canonical bootstrap — include it verbatim. Streamlit's email prompt, usage telemetry, and Deploy button (its external hosting service) are never shown to your organization's users.
 - Server binds to localhost only. Never set `--server.address 0.0.0.0`.
 - Authentication is the user's Windows session — do not build an in-app login.
 - Ephemeral state goes in `st.session_state`. Persistent state goes to SharePoint Lists (preferred) or an existing SQL Server database — never to files in the app folder.
@@ -273,7 +273,7 @@ The `README.md` must include: app name, owner (name + email), brief purpose, dat
 
 ## Distribution and versioning
 
-For an app distributed to a team, the release channel is a SharePoint site (site creation is open at Contoso — any user can create one, no ticket):
+For an app distributed to a team, the release channel is a SharePoint site (site creation is open in your organization — any user can create one, no ticket):
 
 - The release folder (`app.py`, `launch.cmd`, `README.md`) lives in a document library, alongside a `version.json` (`{"version": ..., "released": ..., "notes": ..., "url": ...}`).
 - `app.py` declares a `__version__` constant. At startup it fetches `version.json` (one `httpx` GET with the SharePoint Bearer token) and, if a newer release exists, tells the user and points at the download URL. The check must be **non-blocking** — if the site is unreachable, log it and run anyway. Never auto-download or auto-execute the new version.
@@ -288,7 +288,7 @@ If the requirement includes any of these, this app needs IT-supported hosting, n
 - Listening sockets, webhooks, or any inbound network exposure
 - Multi-user concurrent writes beyond what SharePoint Lists or SQL handle natively
 - Data classified above Internal — PHI, payment data, any regulated data
-- Distribution outside Contoso
+- Distribution outside your organization
 - Modifying Active Directory, Entra ID, or Intune state
 
 ## When in doubt

@@ -26,11 +26,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `docs/adoption-notice.md` and `docs/script-enablement-self-service.md`.
 
 ### Changed
-- Updated three patterns to their latest upstream versions (de-branded):
-  **SharePoint App 1.0 → 1.1** (correctness fixes; MSAL-browser Graph guidance),
-  **Packaged Python 1.1 → 1.2** (SharePoint-first storage, a shared Entra app
-  registration, and team distribution via a `version.json` release channel),
-  **Worker Pool 1.0 → 1.1** (shared registration + release channel). Claude
-  Artifacts stays 1.0 (pattern-page version-display fix only).
+- **Packaged Python 1.2 → 1.3** (de-branded): shared app registration confirmed
+  consented for the SharePoint list path (a typical app needs nothing from IT);
+  recommends a blank Communication site as the team release channel.
+- **Worker Pool 1.1 → 1.2** (de-branded): registration-consent verification
+  recorded; aligned with Packaged Python 1.3.
+- Earlier: **SharePoint App 1.0 → 1.1** (correctness fixes; MSAL-browser Graph
+  guidance), **Packaged Python → 1.2** (SharePoint-first storage, shared Entra
+  app registration, `version.json` release channel), **Worker Pool → 1.1**.
+  Claude Artifacts stays 1.0 (pattern-page version-display fix only).
 - The `euda-worker` sample now signs in through the shared app registration via
   `EUDA_WORKER_CLIENT_ID` / `EUDA_WORKER_TENANT_ID` (placeholders in this repo).
