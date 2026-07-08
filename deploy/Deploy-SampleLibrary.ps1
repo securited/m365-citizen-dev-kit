@@ -18,7 +18,9 @@
 
     Data files upload deepest-first and .aspx shells upload last, matching the
     SharePoint App pattern's recommended order. Supports -WhatIf for a dry run
-    of all destructive and additive steps.
+    of all destructive and additive steps. On a real (non -WhatIf) run, records
+    the outcome, UTC timestamp, current git commit, and file counts to
+    deploy/last-deployment.json.
 
 .PARAMETER SiteUrl
     Target SharePoint site. Defaults to a Contoso sample site — change it to
@@ -175,7 +177,48 @@ function Test-LocalFileNeedsUpload {
     return $localInfo.LastWriteTimeUtc -gt $remoteModifiedUtc.AddSeconds(1)
 }
 
+function Write-DeploymentStatus {
+    param(
+        [Parameter(Mandatory)][string]$Status,
+        [int]$Uploaded = 0,
+        [int]$Skipped  = 0,
+        [int]$Removed  = 0,
+        [string]$ErrorMessage = ''
+    )
+
+    if ($WhatIfPreference) { return }  # never record a dry run
+
+    $commit = ''
+    try { $commit = (& git -C $PSScriptRoot rev-parse HEAD 2>$null) } catch { }
+
+    $record = [ordered]@{
+        status       = $Status
+        timestampUtc = (Get-Date).ToUniversalTime().ToString('o')
+        siteUrl      = $SiteUrl
+        libraryName  = $LibraryName
+        gitCommit    = $commit
+        uploaded     = $Uploaded
+        skipped      = $Skipped
+        removed      = $Removed
+        error        = $ErrorMessage
+    }
+
+    $statusPath = Join-Path $PSScriptRoot 'last-deployment.json'
+    ($record | ConvertTo-Json) | Set-Content -Path $statusPath -Encoding UTF8
+}
+
 #endregion
+
+# Counters referenced by both the deployment-status writer and the failure trap.
+$uploadedCount = 0
+$skippedCount  = 0
+$removedCount  = 0
+
+# On any terminating error, record a 'failed' status before the script exits.
+trap {
+    Write-DeploymentStatus -Status 'failed' -Uploaded $uploadedCount -Skipped $skippedCount -Removed $removedCount -ErrorMessage $_.Exception.Message
+    break
+}
 
 #region --- Validate inputs -----------------------------------------------------
 
@@ -308,7 +351,6 @@ if ($SkipCleanup) {
 else {
     Write-Step "Cleaning up files not present in the local content set"
 
-    $removedCount = 0
     foreach ($relative in @($remoteFileIndex.Keys)) {
         if ($localFiles -notcontains $relative) {
             $file = $remoteFileIndex[$relative]
@@ -353,8 +395,6 @@ foreach ($folder in ($localFolders | Sort-Object { $_.Length })) {
     }
 }
 
-$uploadedCount = 0
-$skippedCount  = 0
 foreach ($relative in $localFiles) {
     $localFull    = Join-Path $SourcePath ($relative.Replace('/', '\'))
     $remoteFolder = $LibraryName
@@ -392,5 +432,8 @@ Write-Success "$uploadedCount file(s) uploaded, $skippedCount unchanged, to $Sit
 Write-Notice  'Reminder: .aspx files only execute if the uploader has the "Add and'
 Write-Notice  'Customize Pages" permission (Design or Full Control) and the custom-script'
 Write-Notice  'window was active at upload. Files in _data/ folders have no such requirement.'
+
+Write-DeploymentStatus -Status 'success' -Uploaded $uploadedCount -Skipped $skippedCount -Removed $removedCount
+Write-Success "Deployment status recorded in $(Join-Path $PSScriptRoot 'last-deployment.json')"
 
 #endregion

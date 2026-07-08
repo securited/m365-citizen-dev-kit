@@ -20,3 +20,6 @@ node_modules/
 # Maintainer-private notes (e.g. the full de-branding runbook with the literal
 # upstream identifiers — must never be published)
 .private/
+
+# Deploy-script runtime artifact (written on each real deploy)
+deploy/last-deployment.json
