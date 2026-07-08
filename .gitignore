@@ -1,0 +1,22 @@
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Streamlit local config
+.streamlit/
+
+# Node
+node_modules/
+
+# Local editor/AI state
+.obsidian/workspace.json
+.claude/settings.local.json
+
+# Maintainer-private notes (e.g. the full de-branding runbook with the literal
+# upstream identifiers — must never be published)
+.private/

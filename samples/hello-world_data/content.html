@@ -1,0 +1,238 @@
+<header class="app-header">
+  <div class="header-brand">
+    <span class="brand-icon">&#9671;</span>
+    <span class="brand-name">Hello World</span>
+  </div>
+  <nav class="app-nav" role="navigation" aria-label="Main navigation">
+    <button class="nav-item" id="nav-dashboard" data-view="dashboard">Dashboard</button>
+    <button class="nav-item" id="nav-messages" data-view="messages">Messages</button>
+    <button class="nav-item" id="nav-metrics" data-view="metrics">Metrics</button>
+    <button class="nav-item" id="nav-about" data-view="about">About</button>
+  </nav>
+  <div class="header-user">
+    <img id="user-photo" class="user-photo hidden" src="" alt="Profile photo" />
+    <span id="user-name" class="user-name"></span>
+  </div>
+</header>
+
+<main class="app-main">
+
+  <!-- ── Dashboard ──────────────────────────────────────────────────────── -->
+  <section id="dashboard-section" class="view-section hidden">
+    <div class="section-header">
+      <h1 id="greeting-text">Hello!</h1>
+      <p class="section-subtitle">SharePoint App Pattern — Hello World demo.</p>
+    </div>
+    <div class="tab-desc">
+      Demonstrates <strong>authentication</strong> — identity resolved via <code>/_api/web/currentUser</code> with fallback to <code>_spPageContextInfo</code> — and <strong>Microsoft Graph</strong> integration, pulling your profile photo and extended profile from <code>/me</code>. Also shows the <strong>Shell + Data pattern</strong>: this page's CSS and HTML were loaded at runtime from the <code>hello-world_data/</code> folder via the SharePoint REST <code>$value</code> endpoint.
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-label">User</div>
+        <div id="dash-user" class="card-value">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Login</div>
+        <div id="dash-login" class="card-value">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Site</div>
+        <div id="dash-site" class="card-value card-value-sm">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Messages</div>
+        <div id="dash-count" class="card-value">—</div>
+      </div>
+    </div>
+
+    <div id="dash-graph-info" class="profile-card hidden">
+      <h3 class="profile-card-title">Graph Profile</h3>
+      <div id="graph-details" class="graph-details"></div>
+    </div>
+
+    <div id="dash-error" class="error-msg hidden" role="alert"></div>
+  </section>
+
+  <!-- ── Messages ───────────────────────────────────────────────────────── -->
+  <section id="messages-section" class="view-section hidden">
+    <div class="section-header">
+      <h2>Messages</h2>
+      <button class="btn btn-primary" id="btn-new-message">+ New Message</button>
+    </div>
+    <div class="tab-desc">
+      Demonstrates <strong>REST API CRUD</strong> against a SharePoint list — create, read, inline edit, and delete — with <strong>OData pagination</strong> (<code>$top</code> + <code>$skiptoken</code>) for large lists. Also shows <strong>list auto-provisioning</strong> (detects a missing list and creates it on demand), <strong>toast notifications</strong>, <strong>inline destructive confirmation</strong>, <strong>empty state</strong> handling, and <strong>safe content display</strong> via a <code>textContent</code> overlay.
+    </div>
+
+    <div id="message-form-container" class="form-card hidden">
+      <h3 id="form-title">New Message</h3>
+      <div class="form-row">
+        <label class="form-label" for="msg-title">Title <span class="req">*</span></label>
+        <input type="text" id="msg-title" class="form-input" placeholder="Message title" maxlength="255" />
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="msg-body">Body</label>
+        <textarea id="msg-body" class="form-input form-textarea"
+          placeholder="Write your message..." maxlength="1000"></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-submit-message">Save</button>
+        <button class="btn btn-secondary" id="btn-cancel-message">Cancel</button>
+      </div>
+      <div id="form-error" class="error-msg hidden" role="alert"></div>
+    </div>
+
+    <div id="messages-loading" class="loading-state">
+      Loading messages<span class="dots"></span>
+    </div>
+    <div id="messages-empty" class="empty-state hidden">
+      <p>No messages yet. Be the first to post!</p>
+    </div>
+    <div id="messages-error" class="error-msg hidden" role="alert"></div>
+
+    <div id="list-setup" class="setup-banner hidden">
+      <div class="setup-banner-icon">&#9432;</div>
+      <div class="setup-banner-body">
+        <strong>List not provisioned</strong>
+        <p>The <code>HelloWorldMessages</code> list doesn't exist on this site yet. Click below to create it automatically.</p>
+        <div id="setup-status" class="setup-status hidden"></div>
+        <button class="btn btn-primary" id="btn-setup-list">Create List</button>
+      </div>
+    </div>
+
+    <ul id="messages-list" class="messages-list hidden" aria-label="Messages"></ul>
+
+    <div id="load-more-container" class="load-more-container hidden">
+      <button class="btn btn-secondary" id="btn-load-more">Load more</button>
+    </div>
+
+    <div id="delete-confirm" class="confirm-overlay hidden" role="dialog" aria-modal="true">
+      <div class="confirm-box">
+        <p class="confirm-text">Delete this message? This cannot be undone.</p>
+        <div class="confirm-actions">
+          <button class="btn btn-danger" id="btn-confirm-delete">Delete</button>
+          <button class="btn btn-secondary" id="btn-cancel-delete">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Metrics ──────────────────────────────────────────────────────────── -->
+  <section id="metrics-section" class="view-section hidden">
+    <div class="section-header">
+      <h2>System Metrics</h2>
+      <button class="btn btn-secondary" id="btn-refresh-metrics">Refresh</button>
+    </div>
+    <div class="tab-desc">
+      Demonstrates <strong>JSON files as a data source</strong> — a ~360 KB <code>metrics.json</code> file is fetched from <code>hello-world_data/</code> via the <code>$value</code> endpoint and parsed entirely client-side. Shows <strong>large file loading</strong> with elapsed time, <strong>inline SVG sparklines</strong> built from 96-point history arrays without a charting library, and <strong>warn/critical threshold coloring</strong> applied per metric.
+    </div>
+
+    <div id="metrics-loading" class="loading-state">
+      Loading metrics<span class="dots"></span>
+    </div>
+    <div id="metrics-error" class="error-msg hidden" role="alert"></div>
+
+    <div id="metrics-content" class="hidden">
+      <div id="metrics-summary" class="metrics-summary"></div>
+      <div id="metrics-body" class="metrics-body"></div>
+      <div id="metrics-meta" class="metrics-meta"></div>
+    </div>
+  </section>
+
+  <!-- ── About ──────────────────────────────────────────────────────────── -->
+  <section id="about-section" class="view-section hidden">
+    <div class="section-header">
+      <h2>About This App</h2>
+    </div>
+    <div class="about-content">
+      <p class="about-intro">
+        A Hello World application demonstrating every technique of the SharePoint App Pattern.
+      </p>
+
+      <h3>What Each Tab Demonstrates</h3>
+
+      <h4>Dashboard</h4>
+      <ul class="pattern-list">
+        <li><strong>Shell + Data Pattern</strong> — The shell <code>.aspx</code> is under 15 KB; all CSS and HTML are loaded from <code>hello-world_data/</code> via the SharePoint REST <code>$value</code> endpoint at boot time</li>
+        <li><strong>Authentication</strong> — Identity resolved via <code>/_api/web/currentUser</code> with graceful fallback to <code>_spPageContextInfo</code> when available (Site Pages only)</li>
+        <li><strong>Site URL Derivation</strong> — <code>deriveSiteUrl()</code> extracts the site root from <code>window.location</code> so the app works in any document library without hardcoding</li>
+        <li><strong>Microsoft Graph</strong> — Profile photo and extended profile fields fetched from <code>/me</code> using the session's Bearer token</li>
+        <li><strong>Loading State</strong> — Animated indicator shown immediately; UI revealed only after initial data resolves</li>
+        <li><strong>Error State</strong> — Inline error displayed near the affected component rather than a blocking alert</li>
+      </ul>
+
+      <h4>Messages</h4>
+      <ul class="pattern-list">
+        <li><strong>List Auto-Provisioning</strong> — Detects a missing list via HTTP 404, shows a setup banner, and creates the <code>HelloWorldMessages</code> list plus all custom fields in one click</li>
+        <li><strong>REST API CRUD</strong> — Full create, read, inline edit (PATCH/MERGE), and delete against a SharePoint list</li>
+        <li><strong>Write Operations</strong> — Every mutating call fetches a fresh digest from <code>/_api/contextinfo</code> rather than relying on the page-injected value</li>
+        <li><strong>OData Queries</strong> — <code>$select</code>, <code>$orderby</code>, and <code>$top</code> on every read; <code>$skiptoken</code> for continuation paging</li>
+        <li><strong>Large List Design</strong> — Results capped with <code>$top</code>; a Load More button fetches the next page via <code>$skiptoken</code> from the <code>__next</code> link</li>
+        <li><strong>Toast Notifications</strong> — Non-blocking, auto-dismiss confirmations after create, update, and delete</li>
+        <li><strong>Destructive Confirmation</strong> — Inline confirm overlay before delete; no <code>window.confirm()</code></li>
+        <li><strong>Empty State</strong> — Explicit message when the list exists but contains no items</li>
+        <li><strong>Safe Content Display</strong> — Message body rendered via <code>textContent</code> in a modal overlay, never <code>innerHTML</code></li>
+      </ul>
+
+      <h4>Metrics</h4>
+      <ul class="pattern-list">
+        <li><strong>JSON File as Data Source</strong> — <code>metrics.json</code> (~360 KB) fetched from <code>hello-world_data/</code> via the <code>$value</code> endpoint and parsed entirely client-side</li>
+        <li><strong>Large File Loading</strong> — Demonstrates loading and rendering a large JSON payload; file size and load time displayed in the footer</li>
+        <li><strong>File vs. List Trade-off</strong> — Static, read-only reference data served as a file rather than a list; appropriate when no per-row querying or user writes are needed</li>
+        <li><strong>Inline SVG Sparklines</strong> — 96-point history arrays rendered as <code>&lt;polyline&gt;</code> elements without any charting library</li>
+        <li><strong>Threshold Coloring</strong> — Warn/critical thresholds applied per metric with inverted logic for uptime (lower = worse)</li>
+        <li><strong>Loading &amp; Error States</strong> — Spinner shown while the file fetches; error message shown on failure</li>
+      </ul>
+
+      <h4>About (this tab)</h4>
+      <ul class="pattern-list">
+        <li><strong>In-Page Navigation</strong> — All four tabs are sections of the same page; <code>showView()</code> shows/hides them with no page loads or URL changes</li>
+        <li><strong>Power Automate</strong> — HTTP trigger URL read at runtime from a restricted <code>AppConfig</code> list; never stored in the shell file</li>
+      </ul>
+
+      <h3>File Structure</h3>
+      <table class="file-table">
+        <thead>
+          <tr><th>File</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>hello-world.aspx</code></td>
+            <td>Shell — derives paths, loads assets, boots app (&lt;15 KB)</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/styles.css</code></td>
+            <td>All application styles</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/content.html</code></td>
+            <td>All application markup</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/metrics.json</code></td>
+            <td>Sample metrics dataset (~360 KB) for the Metrics tab</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Required SharePoint Setup</h3>
+      <ul class="pattern-list">
+        <li>The <strong>HelloWorldMessages</strong> list is created automatically on first use — click "Create List" when prompted on the Messages tab</li>
+        <li>Optional: create a list named <strong>AppConfig</strong> with columns <em>Title</em> and <em>Value</em> to store Power Automate HTTP trigger URLs</li>
+        <li>Custom scripts must be enabled on the target site before uploading — open a help desk ticket to request a 24-hour deployment window</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Toast notification (fixed, auto-dismiss) ─────────────────────────── -->
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<!-- ── Safe content overlay — content set via textContent, never innerHTML ── -->
+<div id="overlay" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="overlay-box">
+    <button class="overlay-close" id="overlay-close" aria-label="Close">&times;</button>
+    <pre id="overlay-content" class="overlay-content"></pre>
+  </div>
+</div>

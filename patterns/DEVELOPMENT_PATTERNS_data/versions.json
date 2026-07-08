@@ -1,0 +1,142 @@
+[
+  {
+    "id": "sharepoint-app",
+    "name": "SharePoint App Pattern",
+    "current": "1.1",
+    "versions": [
+      {
+        "version": "1.1",
+        "date": "2026-07-06",
+        "summary": "Correctness fixes: self-contained helper definitions, identity example, Graph token guidance, and a write-concurrency caveat.",
+        "changes": [
+          "Canonical spPath/spFetch (and writeHeaders) helper definitions added to the project prompt — previously used throughout the snippets but never defined",
+          "Identity fallback now selects Id alongside Title/LoginName, and the 'my items' filter example uses the fetched id instead of _spPageContextInfo.userId (which is undefined in document-library ASPX)",
+          "Removed the 'app service account' wording from the flow-URL storage rule — the platform has no service accounts; restricted lists are readable to the app's users",
+          "Rewrote Graph guidance: SP.UserProfiles GetMyProperties is the no-token path; legacy SP.OAuth.Token/Acquire does not issue Graph tokens for custom pages; browser Graph requires msal-browser against the shared EUDA registration once IT adds a SPA redirect URI, with Power Automate as the fallback",
+          "Added a concurrency caveat to the IF-MATCH: * update/delete examples, cross-referencing the Worker Pool pattern's etag-conditioned writes"
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-05-21",
+        "summary": "Initial release of the SharePoint App Pattern.",
+        "changes": [
+          "Shell + Data pattern: lightweight .aspx shell loads CSS and HTML from a companion _data/ folder via the SharePoint REST $value endpoint",
+          "Identity resolution via /_api/web/currentUser with graceful fallback to _spPageContextInfo when available",
+          "Site URL derivation from window.location with _spPageContextInfo bonus when present",
+          "Write operations using a fresh digest fetched from /_api/contextinfo on every call",
+          "Full REST API CRUD against SharePoint lists with OData filtering, sorting, and $skiptoken pagination",
+          "List auto-provisioning: detects missing list via HTTP 404, creates list and custom fields on demand",
+          "JSON file data source pattern: fetch static data from _data/ folder via $value, parse client-side",
+          "Microsoft Graph integration for user profile and photo via /me endpoint",
+          "Power Automate HTTP trigger integration with URLs stored in a restricted AppConfig list",
+          "Hello World reference application demonstrating all patterns across Dashboard, Messages, Metrics, and About tabs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "claude-artifacts",
+    "name": "Claude Artifacts Pattern",
+    "current": "1.0",
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-21",
+        "summary": "Initial release of the Claude Artifacts development pattern.",
+        "changes": [
+          "Artifact types and selection guidance: HTML, React, SVG, Mermaid, code, and markdown",
+          "Prompt patterns for generating production-quality artifacts",
+          "Iterative refinement workflow — describe, preview, refine in conversation",
+          "Tailwind CSS and inline style conventions for portable artifacts",
+          "Data embedding patterns for self-contained artifacts with no external dependencies",
+          "Handoff pattern: converting a Claude artifact prototype into a deployable SharePoint App Pattern application",
+          "Limitations reference: sandbox restrictions, no SharePoint API access, stateless between conversations"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "packaged-python",
+    "name": "Packaged Python",
+    "current": "1.2",
+    "versions": [
+      {
+        "version": "1.2",
+        "date": "2026-07-06",
+        "summary": "SharePoint-first data storage, the shared EUDA app registration, and team distribution via a SharePoint release channel.",
+        "changes": [
+          "SharePoint Lists are now the preferred store for app-owned data; SQL Server is positioned for querying data that already lives there, not for new app storage — with an httpx + Bearer-token list-access example",
+          "Documented the shared IT-owned 'Contoso EUDA Applications' Entra registration (client <your-entra-client-id>, tenant <your-tenant-id>, http://localhost redirect); real IDs baked into the Graph and SharePoint REST code samples in both the pattern and the project prompt",
+          "Clarified that app releases never touch Entra — only requesting a not-yet-consented delegated scope involves IT (a one-time grant per scope, not per release)",
+          "Added team-distribution guidance: a SharePoint site as the release channel with a version.json and a non-blocking startup version check; pairs with the Worker Pool pattern",
+          "Clarified the Pattern B/C lettering: Pattern A is the browser-based SharePoint App Pattern, not something missing from this guide"
+        ]
+      },
+      {
+        "version": "1.1",
+        "date": "2026-06-12",
+        "summary": "Streamlit first-run hygiene added to the canonical Pattern C bootstrap.",
+        "changes": [
+          "The self-relaunch bootstrap now pre-seeds ~/.streamlit/credentials.toml so end users never see Streamlit's 'Welcome / Email:' prompt on first run",
+          "Usage-stats telemetry disabled (STREAMLIT_BROWSER_GATHER_USAGE_STATS=false)",
+          "Toolbar set to viewer mode (STREAMLIT_CLIENT_TOOLBAR_MODE=viewer) — hides the Deploy button (Streamlit Community Cloud is not approved hosting) and developer menu items",
+          "Applied to the existing Pattern C samples (sql-schema-explorer, parts-data-explorer) and to the project prompt's canonical snippet"
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-06-11",
+        "summary": "Initial release of the Packaged Python pattern.",
+        "changes": [
+          "Single-file applications: one app.py with PEP 723 inline script metadata, run via uv — recipients install nothing but uv itself",
+          "Two app shapes: Pattern B (script — automations, reports, ETL) and Pattern C (Streamlit UI at localhost)",
+          "Python 3.12 runtime pinned via requires-python; uv provisions the interpreter and an isolated environment automatically",
+          "Approved stack with one library per job: httpx, mssql-python, sqlalchemy (local SQLite), pandas, openpyxl, msgraph-sdk, pydantic, keyring, tenacity",
+          "SQL Server access as the signed-in user via mssql-python — Entra ActiveDirectoryInteractive or Windows integrated (Trusted_Connection) on on-prem servers; no passwords, no service accounts",
+          "DB2 data reached exclusively through the IT-managed SQL Server linked server (OPENQUERY pass-through) — no IBM drivers",
+          "Microsoft Graph integration via msgraph-sdk and InteractiveBrowserCredential with persistent, DPAPI-protected token cache",
+          "Canonical launch.cmd that installs uv automatically when missing (winget first, official installer fallback — user-space, no admin), so recipients have zero prerequisites",
+          "Self-bootstrapping Streamlit pattern so the same launcher works for both app shapes",
+          "Security rules: no hardcoded secrets (keyring only), parameterized SQL only, localhost-only UI binding, writes restricted to %LOCALAPPDATA%",
+          "Explicit escalation boundaries: unattended execution, inbound network exposure, and regulated data are out of scope for the citizen tier",
+          "CSV Merge Report sample (Pattern B): merges input CSVs into a formatted Excel workbook with summary sheet, demonstrating the script shape end to end",
+          "Parts Data Explorer sample (Pattern C): interactive Streamlit dashboard with upload, filters, metrics, charts, and CSV download, demonstrating the self-bootstrapping launcher"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "worker-pool",
+    "name": "Worker Pool",
+    "current": "1.1",
+    "versions": [
+      {
+        "version": "1.1",
+        "date": "2026-07-06",
+        "summary": "Aligned with Packaged Python v1.2 — shared app-registration IDs and the version.json release channel.",
+        "changes": [
+          "Filled in the shared 'Contoso EUDA Applications' registration IDs (client <your-entra-client-id>, tenant <your-tenant-id>) in the project prompt, replacing the placeholder client id",
+          "Cross-referenced the Packaged Python team-distribution channel: host the worker's release folder and version.json on the same site as the coordination lists, with the dashboard surfacing 'a newer version is available' so the pool converges on the current release"
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-06-12",
+        "summary": "Scheduled and background automation with no server — a Packaged Python worker on each participant's machine, coordinated through SharePoint lists.",
+        "changes": [
+          "Composition pattern: a Packaged Python Pattern C worker app + SharePoint App Pattern conventions for coordination lists and a read-only status page",
+          "Jobs as data: recurring jobs live in a Schedules list (JobType, ParametersJson, IntervalMinutes, NextRunDue, Enabled); job code lives in an owner-reviewed catalog in the worker",
+          "Atomic claiming via SharePoint optimistic concurrency: MERGE with If-Match etag — exactly one concurrent claimer gets 204, all others get 412; no lock files, no leases, nothing to clean up after a crash",
+          "At-least-once execution contract: all jobs must be idempotent; fencing guard re-verifies RunId after sleep/wake before side effects",
+          "Every run logged to a JobRuns list (status, runBy, timings, output/error) — the audit trail is a native SharePoint list",
+          "Worker UX contract: 'Sign in & join the pool' one-click connect with list auto-provisioning; while the tab is open the machine is in the pool; activity feed frames lost claims (412) as the system working",
+          "Built-in race proof: N simultaneous claims at one etag must yield exactly one winner — shipped as a one-click visual verification in the worker",
+          "Polling etiquette: jittered 30–180 s polls, Retry-After honored on 429/503; Bearer auth means no form digest required",
+          "Engine-agnostic graduation path: the same Schedules/JobRuns lists can later be serviced by a Power Automate flow or IT-owned Azure Function with no client changes",
+          "Reference implementation: euda-worker (Pattern C app with race proof) + euda-worker-status.aspx (read-only pool dashboard) + weather-to-json demo job"
+        ]
+      }
+    ]
+  }
+]

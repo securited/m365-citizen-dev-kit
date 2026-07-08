@@ -1,0 +1,41 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hello-world",
+      "runtimeExecutable": "pwsh",
+      "runtimeArgs": ["-NoProfile", "-File", ".claude/serve.ps1", "-Port", "7432"],
+      "port": 7432
+    },
+    {
+      "name": "sql-schema-explorer",
+      "runtimeExecutable": "pwsh",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:Path = \"$env:USERPROFILE\\.local\\bin;$env:Path\"; $env:STREAMLIT_SERVER_HEADLESS = 'true'; $env:STREAMLIT_BROWSER_GATHER_USAGE_STATS = 'false'; $env:STREAMLIT_SERVER_PORT = '8502'; Set-Location samples/sql-schema-explorer; uv run --python \"$env:APPDATA\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe\" app.py"
+      ],
+      "port": 8502
+    },
+    {
+      "name": "euda-worker",
+      "runtimeExecutable": "pwsh",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:Path = \"$env:USERPROFILE\\.local\\bin;$env:Path\"; $env:STREAMLIT_SERVER_HEADLESS = 'true'; $env:STREAMLIT_BROWSER_GATHER_USAGE_STATS = 'false'; $env:STREAMLIT_SERVER_PORT = '8503'; Set-Location samples/euda-worker; uv run --python \"$env:APPDATA\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe\" app.py"
+      ],
+      "port": 8503
+    },
+    {
+      "name": "data-explorer",
+      "runtimeExecutable": "pwsh",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:Path = \"$env:USERPROFILE\\.local\\bin;$env:Path\"; $env:STREAMLIT_SERVER_HEADLESS = 'true'; $env:STREAMLIT_BROWSER_GATHER_USAGE_STATS = 'false'; Set-Location samples/data-explorer; uv run --python \"$env:APPDATA\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe\" app.py"
+      ],
+      "port": 8501
+    }
+  ]
+}

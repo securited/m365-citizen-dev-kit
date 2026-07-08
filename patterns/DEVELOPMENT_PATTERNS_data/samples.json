@@ -1,0 +1,72 @@
+[
+  {
+    "patternId": "sharepoint-app",
+    "samples": [
+      {
+        "title": "Hello World",
+        "description": "A general demonstration of platform capabilities — authentication, REST CRUD, paged lists, Microsoft Graph, Power Automate, JSON file loading, metrics dashboard, and auto-provisioning.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/hello-world.aspx"
+      },
+      {
+        "title": "Guestbook",
+        "description": "Demonstrates using SharePoint Lists as a database — auto-provisions its list and custom fields on first run, creates entries through a validated form, and renders them with live search. Single-file app styled with the sample design system.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/guestbook.aspx"
+      },
+      {
+        "title": "Executive Metrics Dashboard",
+        "description": "A dynamic metrics dashboard demonstrating JSON file-driven data visualization, sparklines, status thresholds, and large dataset rendering entirely client-side.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/exec-summary.aspx"
+      }
+    ]
+  },
+  {
+    "patternId": "claude-artifacts",
+    "samples": [
+      {
+        "title": "Markdown File Viewer",
+        "description": "An artifact that renders a Markdown file as formatted HTML — headings, code blocks, tables, and inline styles — entirely client-side with no dependencies.",
+        "url": "https://claude.ai/artifacts/<your-shared-artifact-id>"
+      },
+      {
+        "title": "JSON Viewer",
+        "description": "An artifact that renders arbitrary JSON as a collapsible, syntax-highlighted tree — useful for exploring API responses and data structures.",
+        "url": "https://claude.ai/artifacts/<your-shared-artifact-id>"
+      }
+    ]
+  },
+  {
+    "patternId": "packaged-python",
+    "samples": [
+      {
+        "title": "CSV Merge Report",
+        "description": "Pattern B (Script) — merges every CSV in an input folder into one formatted Excel workbook with a summary sheet. Demonstrates PEP 723 metadata, the approved stack (pandas, openpyxl, rich), %LOCALAPPDATA% logging, and run-to-completion terminal output.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/csv-merge-report"
+      },
+      {
+        "title": "Data Explorer",
+        "description": "Pattern C (Streamlit) — an interactive localhost dashboard over a tabular dataset with upload, filters, metrics, charts, and CSV download. Demonstrates the self-bootstrapping launcher, st.session_state, and localhost-only binding.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/data-explorer"
+      },
+      {
+        "title": "SQL Schema Explorer",
+        "description": "Pattern C (Streamlit) — a read-only explorer for SQL Server: browse schemas, tables, and views, inspect columns, preview sample rows, and download as CSV. Demonstrates mssql-python with the user's own identity and parameterized metadata queries.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/sql-schema-explorer"
+      }
+    ]
+  },
+  {
+    "patternId": "worker-pool",
+    "samples": [
+      {
+        "title": "EUDA Worker",
+        "description": "The reference worker app — sign in, join the pool, and watch your machine win and lose claims in real time. Includes the one-click race proof (N simultaneous claims, exactly one winner) and the weather-to-json demo job.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/euda-worker"
+      },
+      {
+        "title": "Worker Pool Status",
+        "description": "The read-only pool dashboard — schedules with due-state, recent runs, machines seen in the last 24 hours, and the latest job output. For everyone who isn't running a worker.",
+        "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/euda-worker-status.aspx"
+      }
+    ]
+  }
+]
