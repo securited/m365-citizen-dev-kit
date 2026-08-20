@@ -160,6 +160,12 @@ body {
   line-height: 1.5;
   flex: 1;
 }
+.supporting-note {
+  font-size: 13px;
+  color: var(--text-mid);
+  line-height: 1.5;
+  margin: -8px 0 14px;
+}
 
 /* ── Comparison table ── */
 .section-heading {
@@ -235,6 +241,12 @@ body {
 
     <div class="section-heading">Patterns</div>
     <div id="pattern-cards" class="pattern-cards"></div>
+
+    <div id="supporting-section" style="display:none">
+      <div class="section-heading">Supporting Patterns</div>
+      <p class="supporting-note">Not app shapes &mdash; cross-cutting guides that apply on top of the pattern you chose above.</p>
+      <div id="supporting-cards" class="pattern-cards"></div>
+    </div>
 
     <div class="section-heading">Pattern Comparison</div>
     <div class="compare-wrap">
@@ -346,7 +358,11 @@ var GUIDE_URLS = {
   'sharepoint-app':   'SHAREPOINT_APP_PATTERN.aspx',
   'claude-artifacts': 'CLAUDE_ARTIFACTS_PATTERN.aspx',
   'packaged-python':  'PACKAGED_PYTHON_PATTERN.aspx',
-  'worker-pool':      'WORKER_POOL_PATTERN.aspx'
+  'worker-pool':      'WORKER_POOL_PATTERN.aspx',
+
+  /* Supporting patterns (kind: 'supporting' in versions.json) */
+  'sharepoint-permissions': 'SHAREPOINT_PERMISSIONS_PATTERN.aspx',
+  'storage-lifecycle':      'SHAREPOINT_STORAGE_LIFECYCLE_PATTERN.aspx'
 };
 
 function boot() {
@@ -359,7 +375,8 @@ function boot() {
     .then(function (text) {
       clearInterval(dotsTimer);
       var patterns = JSON.parse(text);
-      var container = document.getElementById('pattern-cards');
+      var container  = document.getElementById('pattern-cards');
+      var supporting = document.getElementById('supporting-cards');
 
       patterns.forEach(function (p) {
         var isSoon = p.status === 'coming-soon';
@@ -381,7 +398,12 @@ function boot() {
           '<div class="pattern-card-title">' + p.name + badge + '</div>' +
           '<div class="pattern-card-desc">' + desc + '</div>';
 
-        container.appendChild(el);
+        if (p.kind === 'supporting') {
+          supporting.appendChild(el);
+          document.getElementById('supporting-section').style.display = 'block';
+        } else {
+          container.appendChild(el);
+        }
       });
 
       document.getElementById('app-loading').style.display  = 'none';

@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import platform
+import sys
 import threading
 import time
 import uuid
@@ -266,9 +267,9 @@ WMO = {0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fo
 def job_weather_to_json(sp: SPClient, params: dict, ctx: dict) -> str:
     """Fetch current weather and overwrite a JSON file (shown as "Latest output"
     on euda-worker-status.aspx). Idempotent: reruns overwrite the same file."""
-    lat = params.get("latitude", 41.3173)
-    lon = params.get("longitude", -81.3454)
-    label = params.get("label", "Aurora, OH")
+    lat = params.get("latitude", 47.6062)
+    lon = params.get("longitude", -122.3321)
+    label = params.get("label", "Seattle, WA")
     r = httpx.get(
         "https://api.open-meteo.com/v1/forecast",
         params={
@@ -444,9 +445,9 @@ def seed(sp: SPClient, site_url: str) -> str:
     fields = {
         "JobType": "weather-to-json",
         "ParametersJson": json.dumps({
-            "latitude": 41.3173,
-            "longitude": -81.3454,
-            "label": "Aurora, OH",
+            "latitude": 47.6062,
+            "longitude": -122.3321,
+            "label": "Seattle, WA",
             "targetFolder": f"{site_rel}/Sample Sites/euda-worker_data",
             "targetFile": "latest.json",
         }),
@@ -666,6 +667,67 @@ def main() -> None:
     live()
 
 
+def colour_supported() -> bool:
+    """Can we write ANSI colour to this terminal without leaving garbage?
+
+    Honours the NO_COLOR / FORCE_COLOR conventions. On Windows, console
+    virtual-terminal processing is off by default and has to be switched on,
+    which is what the ctypes call does - if that fails we fall back to plain
+    text rather than printing escape sequences at the operator.
+    """
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    if not sys.stdout.isatty():
+        return False
+    if os.name != "nt":
+        return True
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except Exception:
+        return False
+
+
+def print_banner() -> None:
+    """Announce startup and, loudly, how to stop the app again.
+
+    Deliberately ASCII only - cmd.exe runs under a legacy code page where box
+    drawing characters come out as mojibake.
+    """
+    use_colour = colour_supported()
+
+    def paint(text: str, *codes: str) -> str:
+        if not use_colour or not codes:
+            return text
+        return "\033[" + ";".join(codes) + "m" + text + "\033[0m"
+
+    rule = paint("=" * 66, "36")
+    print()
+    print(rule)
+    print("  " + paint("EUDA WORKER", "1", "96"))
+    print(rule)
+    print()
+    print("  Starting up - this opens in your browser in a few seconds.")
+    print()
+    print("  " + paint(" TO STOP THE APP ", "1", "30", "103")
+          + "  press " + paint("Ctrl-C", "1", "93") + " here, or close this window.")
+    print()
+    print("  Closing the browser tab alone does "
+          + paint("NOT", "1", "91") + " stop it.")
+    print()
+    print(rule)
+    print()
+
+
 if __name__ == "__main__":
     from streamlit import runtime
     if runtime.exists():
@@ -686,6 +748,29 @@ if __name__ == "__main__":
             creds.write_text('[general]\nemail = ""\n', encoding="utf-8")
         os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
         os.environ.setdefault("STREAMLIT_CLIENT_TOOLBAR_MODE", "viewer")
+        # The file watcher exists to hot-reload the source while a developer
+        # is editing it. A released app.py never changes while an operator is
+        # running it, so the watcher has nothing to watch - and leaving it on
+        # prints an "install the Watchdog module" nag at the end user.
+        os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
+
+        # Newer Streamlit shows an in-app "Help agents write better apps /
+        # Install the official Streamlit skills" dialog on any machine with an
+        # AI coding agent installed. There is no config option for it - the
+        # only supported switch is the marker file its own "Don't show again"
+        # button writes, so write it. Best effort: never block startup.
+        try:
+            from streamlit.web import skills as _skills
+            _skills.write_nudge_dismissed_marker()
+        except Exception:
+            try:
+                marker = Path.home() / ".streamlit" / ".skills_nudge_dismissed"
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.touch(exist_ok=True)
+            except OSError:
+                pass
+
+        print_banner()
 
         from streamlit.web import cli as stcli
         sys.argv = ["streamlit", "run", sys.argv[0], "--server.address", "localhost"]

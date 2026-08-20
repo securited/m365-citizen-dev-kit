@@ -2,8 +2,81 @@
   {
     "id": "sharepoint-app",
     "name": "SharePoint App Pattern",
-    "current": "1.1",
+    "current": "1.7",
     "versions": [
+      {
+        "version": "1.7",
+        "date": "2026-08-20",
+        "summary": "Rules split into Fixed and Default, and two guidance defects fixed: the shell has no size limit, and \"sensitive\" was collapsing three different things.",
+        "changes": [
+          "The shell size figure is no longer stated as a threshold anywhere it can be mistaken for one. The rule is behavioural — would this code ever change in order to add a feature? — and the guide now says plainly that THERE IS NO SIZE LIMIT on the shell, that 6-8 KB is what reference shells happen to weigh, and that ~15 KB is a smell to investigate rather than a budget or a ceiling. The Quick Reference row no longer quotes a number at all. v1.4 already tried to fix this by rewording; it kept the figure in the same sentence and readers kept pattern-matching on it",
+          "'Never put sensitive data in JavaScript' is replaced by three separately-stated rules, because collapsing them led people to believe the platform cannot hold confidential business data. SECRETS (anything granting access: keys, connection strings, tokens, flow URLs) are Fixed — a browser reads everything the page reads. CONFIDENTIAL BUSINESS DATA (salaries, deal terms, HR records) is supported and is what the platform is for; the ACL protects it, not the UI. REGULATED DATA (PHI, payment card, export-controlled) is a governance boundary owned by IT — a conversation to start, not a permanent no",
+          "'Do not use React, Vue, or Angular' restated as the consequence of the actual fixed constraint, which is no build step. A no-build ES module loaded from _data/ does not break the rule; it is still not the default, and the decision gets recorded",
+          "Every guide and prompt now carries the Fixed/Default legend under its version header, and every prompt section is labelled (fixed) or (default). Fixed means deviation breaks the platform, its security model, its audit trail, or a protocol guarantee; Default means the right answer absent a specific reason — a judgement call, not a rule to obey",
+          "Prompts gained a 'How to read this prompt' preamble instructing Claude to propose the alternative and get agreement rather than silently deviating from a default — and, explicitly, never to tell the user that something a default merely discourages is impossible",
+          "Departing from a default now has a stated protocol: name it, say what makes this case different and what you give up, and record it in the app's README. If a Fixed rule is the obstacle, stop and escalate instead of working around it"
+        ]
+      },
+      {
+        "version": "1.6",
+        "date": "2026-08-20",
+        "summary": "Siting is now part of designing an app: one site per app, because a site's Owners group is the administrator list of everything inside it.",
+        "changes": [
+          "New 'Where the App Lives: One Site Per App' section, opening 'Designing Your Application' — siting comes before schema. A site's Owners group holds Full Control, which includes Manage Permissions, so the site's owners administer every app in it; two apps in one site share an administrator list and no setting undoes that",
+          "Secondary reasons documented: capacity ceilings (2,000 lists and libraries, and each list's scope budget) stop being shared, storage and growth become legible, the 24-hour custom-script window is scoped to one app, sharing settings are per site, and decommission is a single delete instead of orphaned lists nobody dares remove",
+          "Conventions: communication site rather than team site unless an M365 group is genuinely needed, a visible naming convention (euda-<app-name>), a hub site to link sites without merging permissions, and a site registry list on the hub naming each app, its owners, purpose, and last-reviewed date",
+          "The honest cost is stated rather than glossed: cross-site rollups fall back to search, which is security-trimmed but index-lagged, so two things that must query each other row by row are one app in one site",
+          "Deployment requirements now cross-reference the siting decision — the enablement window is per site, which is one of the reasons not to share one. Requirement list renumbered accordingly",
+          "Quick reference gains a row for where to put a new app, and points access control and audit trail at the Permissions & Auditing pattern and sizing/archiving at Storage Shape & Lifecycle"
+        ]
+      },
+      {
+        "version": "1.5",
+        "date": "2026-08-04",
+        "summary": "Hardening from a consuming app on a shared site: deploys no longer clobber runtime-written config, enablement is inferred instead of switched, and the module manifest is validated before upload.",
+        "changes": [
+          "Seed-only files are now a deploy-script parameter (-SeedOnlyFiles) instead of a hardcoded one-app array, and are exempt from the stale-file cleanup sweep — a remote-only seed is live data, not garbage. The guide documents the rule: if the app can write it, the deploy must not",
+          "Custom-script enablement is inferred from whether any .aspx actually needs uploading, so a _data/-only deploy needs no tenant-admin sign-in; -ForceEnablement overrides. Requires connecting and reading the remote inventory before the enablement step",
+          "Deploy-time pre-flight validates every manifest.json: valid JSON, non-empty module list, every named module present on disk, and FALLBACK_MODULES in the sibling app.js matching exactly. These fail at runtime, not deploy time, so the script aborts before shipping a broken app",
+          "Provisioning guidance: prefix provisioned lists with the app name through a single getListName() helper, and set the prefix before provisioning — changing it later strands the existing lists and their data rather than renaming them",
+          "Indexes and versioning must be applied at provisioning while the list is empty: an index added after 5,000 items will not take, and versioning enabled after writes begin has no history for them. Both shown as REST MERGE calls, run after field creation",
+          "New 'Writing List Items' section: fetch ListItemEntityTypeFullName for __metadata.type rather than guessing it (and cache it), a FieldTypeKind/__metadata correspondence table, and person columns taking a numeric <Field>Id from /_api/web/ensureuser",
+          "Corrected the paging guidance to follow the ready-made d.__next URL with a page cap, rather than reconstructing a $skiptoken query",
+          "Fixed an error in the project prompt's field-type comment, which listed 4 as Number; FieldTypeKind 4 is DateTime and Number is 9"
+        ]
+      },
+      {
+        "version": "1.4",
+        "date": "2026-07-08",
+        "summary": "Shell guidance is now a content rule, not a byte budget — plus a documented pattern for adding JS modules without ever redeploying the shell.",
+        "changes": [
+          "Replaced the 'shell under 15KB' figure with a content rule: the shell holds boot logic only (asset loading, canonical helpers, loading/error UI) and no feature code or application state. Size is framed as a symptom — past ~15 KB, logic has leaked in — not as a ceiling to spend",
+          "Moved the rationale up to where the guidance first appears: content-scanner surface, plus the operational asymmetry (.aspx edits need a custom-script window and Design/Full Control; _data/ files need only Contribute)",
+          "Added 'Adding Modules Without Redeploying the Shell': a manifest.json listing modules in load order and a loader at the top of app.js that fetches each via $value, wraps it in a Blob, and appends a script tag — the same mechanism the shell already uses, so no eval() and no CDN. Includes the round-trip and fallback-list caveats",
+          "New shared helpers belong in a companion platform.js in _data/, not in the ticket-gated shell",
+          "'Updating Your Application' strengthened: no update should require changing the shell; if one appears to, the shell is holding logic that belongs in _data/",
+          "Updated the hello-world reference app and the repo manifest to state the same rule — both still described the shell by its byte size",
+          "Prompted by a consuming repo that hardened the 15KB guideline into an invented '< 12 KB' limit (its shells measure 7,151 and 6,529 bytes) and planned a help desk ticket it did not need"
+        ]
+      },
+      {
+        "version": "1.3",
+        "date": "2026-07-08",
+        "summary": "Concrete procedure for enabling browser-side Microsoft Graph: register the exact page URL as a SPA redirect URI on the shared registration.",
+        "changes": [
+          "Replaced the 'browser Graph is unavailable until IT acts' guidance with a step-by-step enablement path: give IT the exact .aspx page URL (Entra matches redirect URIs exactly — no wildcards), IT adds it under the Single-page application platform, set MSAL redirectUri to match",
+          "Noted which Graph scopes are already consented (Mail.Read, Calendars.Read, Tasks.Read, People.Read, User.ReadBasic.All) and that Group.Read.All is not (Planner plan-name resolution)",
+          "Updated both the pattern guide and the project prompt"
+        ]
+      },
+      {
+        "version": "1.2",
+        "date": "2026-07-08",
+        "summary": "Editorial pass — tightened the prose for concision; no changes to guidance, code, or values.",
+        "changes": [
+          "Ruthless-editor pass over the explanatory prose: cut padding, hedging, and redundancy. Code blocks, value tables, API scopes, endpoints, and error codes are unchanged"
+        ]
+      },
       {
         "version": "1.1",
         "date": "2026-07-06",
@@ -38,8 +111,27 @@
   {
     "id": "claude-artifacts",
     "name": "Claude Artifacts Pattern",
-    "current": "1.0",
+    "current": "1.2",
     "versions": [
+      {
+        "version": "1.2",
+        "date": "2026-08-20",
+        "summary": "Rules split into Fixed and Default.",
+        "changes": [
+          "The self-contained sandbox constraints are Fixed because the runtime enforces them; artifact type, styling, portability conventions, and handoff readiness are Default",
+          "Every guide and prompt now carries the Fixed/Default legend under its version header, and every prompt section is labelled (fixed) or (default). Fixed means deviation breaks the platform, its security model, its audit trail, or a protocol guarantee; Default means the right answer absent a specific reason — a judgement call, not a rule to obey",
+          "Prompts gained a 'How to read this prompt' preamble instructing Claude to propose the alternative and get agreement rather than silently deviating from a default — and, explicitly, never to tell the user that something a default merely discourages is impossible",
+          "Departing from a default now has a stated protocol: name it, say what makes this case different and what you give up, and record it in the app's README. If a Fixed rule is the obstacle, stop and escalate instead of working around it"
+        ]
+      },
+      {
+        "version": "1.1",
+        "date": "2026-07-08",
+        "summary": "Editorial pass — tightened the prose for concision; no changes to guidance, code, or values.",
+        "changes": [
+          "Ruthless-editor pass over the explanatory prose: cut padding, hedging, and redundancy. Code blocks, artifact-type details, and the constraint tables are unchanged"
+        ]
+      },
       {
         "version": "1.0",
         "date": "2026-05-21",
@@ -59,8 +151,43 @@
   {
     "id": "packaged-python",
     "name": "Packaged Python",
-    "current": "1.3",
+    "current": "1.6",
     "versions": [
+      {
+        "version": "1.6",
+        "date": "2026-08-20",
+        "summary": "Rules split into Fixed and Default, and the PII prohibition corrected — it read as \"this platform cannot store a person's name\".",
+        "changes": [
+          "'No PII or PHI in local files' corrected to 'no REGULATED data in local files'. Lumping PII with PHI made the rule unusable: names, email addresses, employee IDs, and org data appear in nearly every app on this platform. Ordinary personal and confidential business data is explicitly in scope — treat it as Internal, keep it under %LOCALAPPDATA% — while PHI, payment card data, and export-controlled material still escalate",
+          "The prompt now says outright never to tell a user this tier cannot store ordinary personal or confidential data",
+          "Stack and runtime choices stay Fixed, which is the point of the split: PEP 723 and uv, Streamlit for Pattern C, the approved library list, the canonical launch.cmd, and the security rules are binding. What became Default is the design surface — which library for a given job, the UI, the distribution channel",
+          "Every guide and prompt now carries the Fixed/Default legend under its version header, and every prompt section is labelled (fixed) or (default). Fixed means deviation breaks the platform, its security model, its audit trail, or a protocol guarantee; Default means the right answer absent a specific reason — a judgement call, not a rule to obey",
+          "Prompts gained a 'How to read this prompt' preamble instructing Claude to propose the alternative and get agreement rather than silently deviating from a default — and, explicitly, never to tell the user that something a default merely discourages is impossible",
+          "Departing from a default now has a stated protocol: name it, say what makes this case different and what you give up, and record it in the app's README. If a Fixed rule is the obstacle, stop and escalate instead of working around it"
+        ]
+      },
+      {
+        "version": "1.5",
+        "date": "2026-08-19",
+        "summary": "End-user polish for Pattern C, from a consuming app: the bootstrap silences two developer-facing Streamlit prompts, the launcher says how to stop the app, and every app ships a HOW-TO-RUN.md.",
+        "changes": [
+          "First-run hygiene block now sets STREAMLIT_SERVER_FILE_WATCHER_TYPE=none. The watcher hot-reloads source while a developer edits it and has nothing to watch in a released app, but leaving it on greets every end user with 'install the Watchdog module' plus an xcode-select --install instruction. Documented why adding watchdog to the PEP 723 dependencies is the wrong fix: a native-component package on every operator machine for a feature that cannot fire in production",
+          "First-run hygiene block now writes the Streamlit skills-nudge marker, dismissing the in-app 'Help agents write better apps / Install the official Streamlit skills' dialog. There is no config option for it — the marker its own 'Don't show again' button writes is the only supported switch — so the block calls write_nudge_dismissed_marker() with a direct marker-file fallback, both arms wrapped so a failure cannot block startup",
+          "The matching terminal message is a separate code path gated on logger.hideWelcomeMessage, not the marker. Guidance is to leave it: hideWelcomeMessage also suppresses the URL: http://localhost:8501 line, and an app cannot reliably reprint that — get_option('server.port') read before launch ignores STREAMLIT_SERVER_PORT and config.toml, and pinning the port in sys.argv would break Streamlit's own fallback to the next free port",
+          "New 'The Launcher Says How to Stop the App' section: a Pattern C app keeps running after the browser tab closes and nothing said so. Canonical colour_supported() and print_banner() added to the project prompt, gating ANSI on NO_COLOR/FORCE_COLOR, isatty(), and the Windows ENABLE_VIRTUAL_TERMINAL_PROCESSING call, all stdlib; banner text is ASCII-only because cmd.exe's legacy code page turns box-drawing characters into mojibake",
+          "HOW-TO-RUN.md is now part of the project layout and the release folder. README.md is an owner-and-reviewer document; the colleague who was sent a folder needs a different page — launch.cmd on Windows and the slow first run, brew install uv plus uv run app.py on Mac, how to stop it, what to have in hand, and a table of likely errors",
+          "Updated the repo manifest's packaged-python app folder layout to match",
+          "Prompted by feedback from the Claude Custom Spend Limit Reset app, which built against v1.4 and had to apply all four of these outside the canonical block"
+        ]
+      },
+      {
+        "version": "1.4",
+        "date": "2026-07-08",
+        "summary": "Editorial pass — tightened the prose for concision; no changes to guidance, code, or values.",
+        "changes": [
+          "Ruthless-editor pass over the explanatory prose: cut padding, hedging, and redundancy. The canonical launch.cmd, PEP 723 metadata, approved-library table, registration IDs, and all code blocks are unchanged"
+        ]
+      },
       {
         "version": "1.3",
         "date": "2026-07-08",
@@ -119,8 +246,28 @@
   {
     "id": "worker-pool",
     "name": "Worker Pool",
-    "current": "1.2",
+    "current": "1.4",
     "versions": [
+      {
+        "version": "1.4",
+        "date": "2026-08-20",
+        "summary": "Rules split into Fixed and Default; the claim protocol and idempotency contract are explicitly Fixed.",
+        "changes": [
+          "The etag claim protocol and the at-least-once idempotency contract are labelled Fixed in the guide — they are the pattern's correctness guarantee and the race proof exists to verify them",
+          "Worker UX and status-page requirements are relabelled Default: the dashboard, the activity feed, and the page layout are design choices. The race proof itself stays Fixed",
+          "Every guide and prompt now carries the Fixed/Default legend under its version header, and every prompt section is labelled (fixed) or (default). Fixed means deviation breaks the platform, its security model, its audit trail, or a protocol guarantee; Default means the right answer absent a specific reason — a judgement call, not a rule to obey",
+          "Prompts gained a 'How to read this prompt' preamble instructing Claude to propose the alternative and get agreement rather than silently deviating from a default — and, explicitly, never to tell the user that something a default merely discourages is impossible",
+          "Departing from a default now has a stated protocol: name it, say what makes this case different and what you give up, and record it in the app's README. If a Fixed rule is the obstacle, stop and escalate instead of working around it"
+        ]
+      },
+      {
+        "version": "1.3",
+        "date": "2026-07-08",
+        "summary": "Editorial pass — tightened the prose for concision; no changes to guidance, code, or values.",
+        "changes": [
+          "Ruthless-editor pass over the explanatory prose: cut padding, hedging, and redundancy. The claim/etag/If-Match protocol, list schemas, scopes, and HTTP/error codes are unchanged"
+        ]
+      },
       {
         "version": "1.2",
         "date": "2026-07-08",
@@ -154,6 +301,89 @@
           "Polling etiquette: jittered 30–180 s polls, Retry-After honored on 429/503; Bearer auth means no form digest required",
           "Engine-agnostic graduation path: the same Schedules/JobRuns lists can later be serviced by a Power Automate flow or IT-owned Azure Function with no client changes",
           "Reference implementation: euda-worker (Pattern C app with race proof) + euda-worker-status.aspx (read-only pool dashboard) + weather-to-json demo job"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sharepoint-permissions",
+    "name": "SharePoint Permissions & Auditing",
+    "kind": "supporting",
+    "current": "1.1",
+    "versions": [
+      {
+        "version": "1.1",
+        "date": "2026-08-20",
+        "summary": "Rules split into Fixed and Default, and two operational preferences demoted from prohibitions.",
+        "changes": [
+          "'NEVER put an individual on an ACL' and 'NEVER break inheritance by hand in the UI' were listed among the security invariants. Neither is one: both cost maintenance rather than safety. They moved to a new 'Operational defaults' section that states what deviating costs and when it is a reasonable call — a single long-lived unit with one named reviewer, or a unit whose permissions will never change",
+          "What remains Fixed is what is genuinely load-bearing: do not filter by role in client code and call it access control, do not let a list decide access instead of the ACL, do not store an admin role, do not cache a security-trimmed result for other users, every write happens as the acting user, and do not break inheritance in a runtime loop over existing data",
+          "'Choosing the securable level' relabelled Default with the Microsoft limits it quotes marked as external facts rather than house rules. The siting and setup-page guidance in section 9 is Default, and now states when the alternative is defensible instead of forbidding it",
+          "Every guide and prompt now carries the Fixed/Default legend under its version header, and every prompt section is labelled (fixed) or (default). Fixed means deviation breaks the platform, its security model, its audit trail, or a protocol guarantee; Default means the right answer absent a specific reason — a judgement call, not a rule to obey",
+          "Prompts gained a 'How to read this prompt' preamble instructing Claude to propose the alternative and get agreement rather than silently deviating from a default — and, explicitly, never to tell the user that something a default merely discourages is impossible",
+          "Departing from a default now has a stated protocol: name it, say what makes this case different and what you give up, and record it in the app's README. If a Fixed rule is the obstacle, stop and escalate instead of working around it"
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-08-20",
+        "summary": "Supporting pattern: use SharePoint site, list, library, folder, and file permissions as the application authorization layer, and get an audit trail without writing one.",
+        "changes": [
+          "The permissible-unit rule: before designing lists or columns, name the smallest thing two people might need different access to, and make it its own securable object. Granularity cannot be retrofitted without a data migration, so it is a day-one decision — a deal in an M&A tracker is a folder, not a row",
+          "The securable ladder (site / list / folder / item) with the service limits that pick the level: 5,000 unique scopes per list recommended (50,000 supported), 2,000 lists and libraries per site collection, and no breaking or restoring inheritance once a container passes 100,000 items. Folder-per-unit is the default choice",
+          "Security trimming is the query filter: issue the plain GET and SharePoint returns only what the caller may read. Includes the composition move — the set of objects a user can read is itself a fact about that user, so an org hierarchy can be reconstructed from ACLs alone with no hierarchy stored anywhere",
+          "Groups are the join table: one group per permissible unit, that group is the sole ACL entry, and every access change is a membership write. Covers SharePoint vs Entra group choice and why removals, not adds, are the failure mode",
+          "Site owners are automatically the application administrators. Full Control includes Manage Permissions, so derive the admin flag from /_api/web/effectivebasepermissions (ManageWeb = Low & 0x40000000) instead of storing a role list — effective permissions catch ownership arriving through nested Entra groups, which currentUser/groups misses",
+          "The boundary that follows: you cannot durably hide data from a site owner or a site collection administrator, and ReadSecurity/WriteSecurity do not apply to them. If data must be invisible to the owners it needs a separate site — which makes siting the real security decision",
+          "Seven design shapes with worked REST: folder-per-unit (M&A tracker), list-per-unit (region split), file-per-principal ACL-as-graph (HR manager portal), segregation of duties via a separate approvals list, restricted configuration, read-mostly reference data, and personal drafts via ReadSecurity/WriteSecurity = 2 (per-creator privacy at zero unique scopes)",
+          "provisionUnit() as a fixed sequence — create, break inheritance, grant the group, then read the ACL back and assert it. The read-back is mandatory: breakroleinheritance(copyRoleAssignments=false) does not leave an empty ACL, it leaves the calling user with Full Control",
+          "Auditing from what SharePoint already stamps: Author/Editor, versioning (enabled at provisioning — history cannot be backfilled), the recycle bin for deletions, GetChanges for activity feeds, and role assignments for who can see it now. Who changed the permissions lives in Purview, which citizen apps cannot read, so an app that grants access must write its own provenance rows",
+          "Framed the platform no-service-account rule as an audit rule: every write happens as the acting user, or the trail collapses to one name. Notes the Power Automate caveat — a flow runs as its connection owner, not the requester",
+          "Section 9 gives the permissions-specific reason for three operational practices documented elsewhere: one site per app (SharePoint App Pattern) because two apps in one site share an administrator list; provisionUnit() inside a setup page (Storage Shape & Lifecycle) so the ACL that exists is the one somebody reviewed and a second site reproduces it exactly; and two admin-page panels nothing else surfaces — unique scopes against the 5,000 recommendation, and the access report comparing live ACLs to the grants list",
+          "Anti-pattern table, gotchas (Limited Access, sharing links creating unstated scopes, untrimmed ItemCount, short pages that still have a __next, search index lag), and a thirteen-step design checklist to work through before the first list is created"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "storage-lifecycle",
+    "name": "Storage Shape & Lifecycle",
+    "kind": "supporting",
+    "current": "1.1",
+    "versions": [
+      {
+        "version": "1.1",
+        "date": "2026-08-20",
+        "summary": "Rules split into Fixed and Default — correcting a first release that labelled most of its design guidance (fixed).",
+        "changes": [
+          "Mechanism selection, the hybrid shape, sprawl control, setup pages, admin pages, and archive granularity are Default. v1.0 marked most of these (fixed), which was wrong: they are the judgement calls the pattern exists to inform",
+          "'NEVER propose a design that provisions hundreds of lists' sat inside the section labelled the judgement call. It now says to stop and make the case out loud with the ceiling arithmetic, and acknowledges the real exception — a list carries per-row versioning and safe concurrent writes a file cannot",
+          "What stays Fixed is data safety: verify-then-delete ordering, capturing Author/Created/Editor/Modified into the archive envelope, archive immutability, archived records staying read-only, the Original* provenance columns, and the disclosure of what does not survive a rehydration round trip",
+          "The setup-page section now allows that a short manual checklist is defensible for a single site with two lists and no permissions work — said explicitly rather than drifted into",
+          "Every guide and prompt now carries the Fixed/Default legend under its version header, and every prompt section is labelled (fixed) or (default). Fixed means deviation breaks the platform, its security model, its audit trail, or a protocol guarantee; Default means the right answer absent a specific reason — a judgement call, not a rule to obey",
+          "Prompts gained a 'How to read this prompt' preamble instructing Claude to propose the alternative and get agreement rather than silently deviating from a default — and, explicitly, never to tell the user that something a default merely discourages is impossible",
+          "Departing from a default now has a stated protocol: name it, say what makes this case different and what you give up, and record it in the app's README. If a Fixed rule is the obstacle, stop and escalate instead of working around it"
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-08-20",
+        "summary": "Supporting pattern: how many objects the storage layer creates, which mechanism can carry them, and what happens to data when it gets old.",
+        "changes": [
+          "Shape follows count and lifetime: two questions decide the mechanism — how many units at three years, and does a unit's content need server-side querying, safe concurrent writes, or per-row history. A decision table maps count and answer to list-per-unit, folder-per-unit, file-per-unit, or the hybrid",
+          "Named the failure mode directly: a design that would provision hundreds of lists is a folder of files in disguise. Symptoms listed (identical schemas, dozens of rows each, no cross-list querying, provisioning as part of unit creation). Same per-unit ACL and same one scope, without the schema overhead or the 2,000-list ceiling",
+          "A list-vs-file cost table. Concurrency is usually the deciding factor: files have no transaction safety, so anything two people can edit at once must be a list",
+          "The hybrid shape — a shared index list of non-sensitive metadata plus an ACL'd payload file per unit — giving cross-unit dashboards and per-unit privacy at once, and a clean answer to the permissions guide's \"absence is ambiguous\" problem. One hard rule: nothing sensitive in the index",
+          "Sprawl control: unit-count budgets displayed on the admin page, no speculative provisioning, naming that sorts, group accumulation against the 10,000-per-site-collection ceiling, and a scheduled orphan sweep that reports and never auto-fixes (with a table of what it looks for)",
+          "Hot/cold/gone tiering and the archive contract: a self-describing immutable archive envelope (schema version, source, unit, period, row count, checksum, provenance, columns, rows) and an Archives manifest list that is security-trimmed, so \"which archives may I load?\" is answered per user",
+          "The archiver must capture Author, Created, Editor, and Modified INSIDE the file — once the source rows are deleted it is the only surviving record of who did what. Called out as the most expensive mistake available in the pattern",
+          "Verify, then delete — never delete, then write. Fixed order with a REST sketch: page the source, build the envelope, write the file, re-read it from SharePoint, verify row count and checksum, write the manifest row, only then delete. A crash anywhere leaves either untouched source data or a complete archive plus the source data",
+          "Archive-aware reads: hot by default, explicit opt-in, read-only by construction with no edit affordances, filtered to State === Archived so rehydrated rows do not appear twice, and merged for display only",
+          "Dehydration and rehydration: rehydration copies and never moves, whole units only, capped against the 5,000-item view threshold, idempotent, and re-dehydration writes a new file and supersedes the old rather than overwriting",
+          "The audit trap, with a what-survives table: rehydrated rows are new list items, so SharePoint stamps Author/Editor with the restorer. Original* provenance columns must be provisioned at setup or the original history is lost; per-row version history, item IDs, per-row permissions, and attachments do not survive unless explicitly handled",
+          "Setup is a page, not a procedure — eight requirements (idempotent, previews before applying, correctly ordered, provisions the lifecycle machinery and the permissions, permission-gated with a plain-English message, self-verifying, schema-version-stamped, kept after go-live). Moved here from the Permissions pattern, which now cross-references it",
+          "Administrative pages, with a ten-panel table (provisioning state, unit count vs budget, scope budget, threshold headroom, storage and growth, archive inventory, orphan sweep, access report, config in effect, provenance) and five rules — derived never authoritative, gate and degrade, be honest about the viewer's lens, preview and confirm destructive actions, and link to tenant tooling rather than approximating it",
+          "Retention, ownership, and decommission decided while the lists are still empty; anti-pattern table; eleven-step design checklist; and an escalation boundary that separates an operational archive from Purview retention, legal hold, and defensible disposal"
         ]
       }
     ]

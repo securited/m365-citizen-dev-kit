@@ -1,8 +1,10 @@
 # Building Applications with the SharePoint App Pattern
 
-> **SharePoint App Pattern — v1.1** · updated 2026-07-06. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **SharePoint App Pattern — v1.7** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
-A guide for designing and deploying custom web applications using SharePoint as a complete application platform — no external servers, no external infrastructure, no separate hosting.
+> **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
+
+A guide for designing and deploying custom web applications on SharePoint as a complete application platform — no external servers, no separate hosting.
 
 > **Starting a new app?** See [SHAREPOINT_APP_PROMPT.md](SHAREPOINT_APP_PROMPT.md) for a complete prompt you can give Claude to constrain development to this pattern's conventions. Copy it as your first message when beginning a new project.
 
@@ -10,27 +12,27 @@ A guide for designing and deploying custom web applications using SharePoint as 
 
 ## Executive Summary
 
-This platform turns SharePoint into a full application hosting environment using only files, lists, and Microsoft 365 services you already have. Every application follows the same pattern:
+This platform turns SharePoint into an application hosting environment using only files, lists, and Microsoft 365 services you already have. Every application follows the same pattern:
 
-**A lightweight `.aspx` shell** (under 15KB) lives in a document library and serves as the entry point. It loads its CSS and HTML from a companion `_data/` subfolder at runtime, keeping the shell itself small and inert. All application logic, styles, and markup live in those companion files — which means most updates never touch the shell.
+**A boot-only `.aspx` shell** lives in a document library and serves as the entry point. It loads assets from a companion `_data/` subfolder at runtime, defines the handful of helpers those assets build on, and shows loading and error states — **no feature code and no application state**. Two reasons: SharePoint's content scanner scrutinizes `.aspx` files, so a small, inert shell reduces the surface area for false positives; and `.aspx` updates are ticket-gated while `_data/` files are not, so a shell holding only boot logic never has to change again.
 
-**SharePoint Lists are the database.** Each list is a table; columns are fields; items are rows. The SharePoint REST API provides full OData querying — filtering, sorting, pagination, and lookups — without any external database or API server. Lists can hold millions of items and auto-provision themselves on first use.
+**SharePoint Lists are the database.** Each list is a table; columns are fields; items are rows. The SharePoint REST API provides full OData querying — filtering, sorting, pagination, and lookups — with no external database or API server. Lists hold millions of items and auto-provision on first use.
 
-**JSON files in the `_data/` folder serve as a lightweight data layer** for configuration, static lookup tables, and reference data that doesn't need per-row querying. They're read at runtime via the same REST endpoint as CSS and HTML.
+**JSON files in the `_data/` folder are a lightweight data layer** for configuration, static lookup tables, and reference data that doesn't need per-row querying. They're read at runtime via the same REST endpoint as CSS and HTML.
 
 **Every user is already authenticated.** There is no login screen to build. Identity is resolved via a single REST call (`/_api/web/currentUser`) — no OAuth flows, no token management, no session handling.
 
 **Power Automate handles all server-side logic.** Sending email, calling external APIs, running approvals, executing on a schedule — these are HTTP-triggered flows your application calls with a `fetch()`. No backend server required.
 
-**Microsoft Graph extends the platform** with rich user data: full profile, photo, manager, presence, and directory search — using the same authenticated session, no additional login needed.
+**Microsoft Graph extends the platform** with rich user data: full profile, photo, manager, presence, and directory search — using the same authenticated session.
 
 The result is a complete application stack deployed as a handful of files inside your existing M365 tenant. Anyone in your organization can access it, secured by your existing identity system, with no infrastructure to maintain.
 
 ### Enabling Deployments
 
-Before uploading `.aspx` files to a SharePoint site, custom scripts must be enabled on that site. **Open a help desk ticket and request that your SharePoint site be enabled for custom script deployments.** Once enabled, the site has a 24-hour deployment window during which you can upload and register your application files. After that window closes, the setting resets automatically.
+Before uploading `.aspx` files to a SharePoint site, custom scripts must be enabled on that site. **Open a help desk ticket and request that your SharePoint site be enabled for custom script deployments.** Once enabled, the site has a 24-hour deployment window to upload and register your application files. After it closes, the setting resets automatically.
 
-If you need to make updates to the shell (`.aspx`) file in the future, you will need to request enablement again. Files in the `_data/` folder — CSS, HTML, JSON — can be updated at any time with no re-enablement required, because they are plain document files, not executable scripts.
+Updating the shell (`.aspx`) later requires requesting enablement again. Files in the `_data/` folder — CSS, HTML, JSON — can be updated any time with no re-enablement, because they are plain document files, not executable scripts.
 
 > The self-service process for enabling custom scripts is planned for a future update and will remove the need to file a ticket.
 
@@ -38,9 +40,9 @@ If you need to make updates to the shell (`.aspx`) file in the future, you will 
 
 ## What This Platform Is
 
-SharePoint is typically thought of as a document management and intranet tool. But with custom script support enabled, it becomes a fully functional application hosting environment: your files live in document libraries, your data lives in lists, your users are already authenticated, and your backend logic runs through Power Automate.
+SharePoint is usually seen as a document management and intranet tool. With custom script support enabled, it becomes an application hosting environment: files live in document libraries, data lives in lists, users are already authenticated, and backend logic runs through Power Automate.
 
-The result is a complete application stack that deploys inside your existing Microsoft 365 tenant — accessible to anyone in your organization, secured by your existing identity system, and maintained without any external hosting.
+The result is a complete application stack that deploys inside your existing Microsoft 365 tenant — accessible to anyone in your organization, secured by your existing identity system, and maintained without external hosting.
 
 ---
 
@@ -50,18 +52,22 @@ The result is a complete application stack that deploys inside your existing Mic
 
 Every application follows a two-part structure:
 
-**The shell** is a lightweight `.aspx` file — typically under 15KB — that contains only enough code to load the rest of the application. SharePoint executes this file as a web page. The shell:
-- Displays a loading indicator immediately
-- Fetches CSS and HTML content from companion files
-- Injects the loaded content into the page
-- Initializes any runtime behavior (event listeners, data fetching, etc.)
+**The shell** is a boot-only `.aspx` file that SharePoint executes as a web page. It contains:
+- A loading indicator, shown immediately
+- The canonical helpers its assets build on (`deriveSiteUrl`, `spPath`, `spFetch`, `fetchAsset`)
+- Asset loading from the companion `_data/` folder, and injection into the page
+- Loading and error UI, then a hand-off to the app's init
+
+**It contains no feature code and no application state (Fixed).** Everything else lives in `_data/`. The test is behavioural, and you can apply it to any line: *would this code ever have to change in order to add a feature?* If yes, it belongs in `_data/`.
+
+**There is no size limit on the shell.** SharePoint does not impose one and neither does this pattern. Reference shells happen to run 6–8 KB, and a shell drifting past roughly 15 KB is a useful hint that logic has leaked in — but that is a smell worth investigating, not a budget to spend or a ceiling to fit under. Never minify, compress, or golf a shell to hit a number: either it is holding logic that should move to `_data/`, in which case move it, or it is not, in which case its size is fine. Reports of this figure hardening into an invented hard limit are why it is spelled out this plainly.
 
 **The data folder** is a document library subfolder containing the actual application files:
 - `styles.css` — all visual styling
 - `content.html` — all HTML markup
 - Optionally: additional JS modules, images, config files
 
-This separation exists because SharePoint's content scanner scrutinizes `.aspx` files closely. Keeping the shell small and inert reduces the surface area for false positives, and the companion files load as raw text through SharePoint's REST API, bypassing content-type enforcement entirely.
+Two reasons for the split. **Scanner surface:** SharePoint's content scanner scrutinizes `.aspx` files closely, so a small, inert shell reduces false positives; companion files load as raw text through the REST API, bypassing content-type enforcement. **Deployment friction:** changing the `.aspx` requires a custom-script window *and* Design or Full Control at upload, while `_data/` files need only Contribute. That asymmetry is the platform's most important operational constraint — see **Adding Modules Without Redeploying the Shell** below for how to keep the shell fixed for the life of the app.
 
 **Naming convention:** If the shell is `my-app.aspx`, the data folder is `my-app_data/`.
 
@@ -69,14 +75,14 @@ This separation exists because SharePoint's content scanner scrutinizes `.aspx` 
 
 ### Authentication Is Free
 
-Every user visiting your application is already authenticated by Microsoft 365. You never build a login screen. You never manage tokens. If a user can reach your page, you know exactly who they are.
+Every user visiting your application is already authenticated by Microsoft 365. You never build a login screen or manage tokens. If a user can reach your page, you know who they are.
 
 Identity is resolved in one of two ways depending on where your file lives:
 
 **Site Pages** (`.aspx` files in the Site Pages library with a master page) receive a global object called `_spPageContextInfo` automatically:
 ```
-_spPageContextInfo.userDisplayName   — "First Last"
-_spPageContextInfo.userLoginName     — "user@company.com"
+_spPageContextInfo.userDisplayName   — "Sample User"
+_spPageContextInfo.userLoginName     — "sample.user@company.com"
 _spPageContextInfo.userId            — SharePoint user ID (integer)
 _spPageContextInfo.webAbsoluteUrl    — current site URL
 _spPageContextInfo.formDigestValue   — security token for write operations
@@ -86,9 +92,9 @@ _spPageContextInfo.formDigestValue   — security token for write operations
 ```
 GET /_api/web/currentUser?$select=Title,LoginName
 ```
-This returns the same display name and login name with no additional authentication needed. All applications on this platform should implement this as the primary identity path, treating `_spPageContextInfo` as a bonus when present.
+This returns the same display name and login name with no additional authentication. Implement it as the primary identity path, treating `_spPageContextInfo` as a bonus when present.
 
-Similarly, the site URL must be derived from `window.location` rather than `_spPageContextInfo.webAbsoluteUrl`:
+Similarly, derive the site URL from `window.location` rather than `_spPageContextInfo.webAbsoluteUrl`:
 ```javascript
 function deriveSiteUrl() {
   if (typeof _spPageContextInfo !== 'undefined' && _spPageContextInfo.webAbsoluteUrl) {
@@ -111,15 +117,15 @@ SharePoint Lists are the primary data store for every application. Think of each
 - **Versioning** gives you a built-in audit trail at no cost
 - **Item-level permissions** let you control who can read or write individual records
 
-Lists are queried via the SharePoint REST API using OData syntax — filtering, sorting, selecting specific columns, expanding lookups, and paging through large result sets are all supported.
+Query lists via the SharePoint REST API using OData syntax — filtering, sorting, selecting columns, expanding lookups, and paging through large result sets.
 
-A single list can hold millions of items. There is a query threshold of 5,000 items per request, but this is a per-query limit, not a list size limit. Applications designed with indexed columns and paginated queries can work effectively with very large data sets.
+A single list holds millions of items. The 5,000-item query threshold is a per-query limit, not a list size limit. With indexed columns and paginated queries, applications handle very large data sets.
 
 ---
 
 ### Files as a Data Source
 
-Not all data belongs in a list. For read-mostly, structured data that doesn't need per-row querying or user-level permissions, JSON files stored in the `_data` folder are a lighter-weight alternative.
+Not all data belongs in a list. For read-mostly, structured data that doesn't need per-row querying or user-level permissions, JSON files in the `_data` folder are a lighter-weight alternative.
 
 **Good fits for file-based data:**
 - Application configuration (feature flags, thresholds, display labels)
@@ -127,7 +133,7 @@ Not all data belongs in a list. For read-mostly, structured data that doesn't ne
 - Reference data shared across the app but rarely updated (product catalogs, region maps)
 - Seed data loaded once on first use
 
-The snippets below (and throughout this guide) use two canonical helpers every app defines once: `spPath()` escapes apostrophes in REST path segments (`p.replace(/'/g, "''")`), and `spFetch()` wraps `fetch()` with `credentials: 'same-origin'` and a default `Accept: application/json;odata=verbose` header. Full definitions are in the [project prompt](SHAREPOINT_APP_PROMPT.md) and the hello-world reference app.
+The snippets below use two canonical helpers every app defines once: `spPath()` escapes apostrophes in REST path segments (`p.replace(/'/g, "''")`), and `spFetch()` wraps `fetch()` with `credentials: 'same-origin'` and a default `Accept: application/json;odata=verbose` header. Full definitions are in the [project prompt](SHAREPOINT_APP_PROMPT.md) and the hello-world reference app.
 
 **Reading a JSON file:**
 
@@ -157,6 +163,18 @@ function saveConfig(filename, data, digest) {
 }
 ```
 
+#### Files the App Rewrites at Runtime Are Seeds Locally, State Remotely
+
+The moment an app writes a JSON file back to `_data/`, that file stops being deployment output and becomes **live state**. The copy in your repo is only a first-run seed; the deployed copy holds whatever an admin has configured since. A deploy that uploads the local copy silently reverts every setting — no error, no warning, and nothing visibly wrong until someone notices the app is back to defaults.
+
+Register every such file as **seed-only** in the deploy script's `-SeedOnlyFiles` list. Seed-only files are uploaded when missing remotely, never overwritten, and never removed as stale:
+
+```powershell
+.\Deploy-SampleLibrary.ps1 -SeedOnlyFiles 'euda-worker_data/latest.json','my-app_data/site-config.json'
+```
+
+The rule is mechanical: **if the app can write it, the deploy must not.** Any file passed to `files/add(overwrite=true)` at runtime belongs on that list the day it is introduced — not the day someone discovers their settings reset.
+
 **When to use a file vs. a list:**
 
 | Situation | Use |
@@ -169,15 +187,15 @@ function saveConfig(filename, data, digest) {
 | Data is written by admins, not end users | JSON file |
 | Data is written frequently or concurrently | List (files have no transaction safety) |
 
-The main limitation of file-based data is that there is no querying — you load the entire file and filter in JavaScript. For small datasets this is fine; for anything that could grow large or needs server-side filtering, use a list.
+The main limitation of file-based data is no querying — you load the entire file and filter in JavaScript. Fine for small datasets; for anything that could grow large or needs server-side filtering, use a list.
 
 ---
 
 ### Power Automate Is Your Backend
 
-For any logic that shouldn't run in the browser — sending emails, processing data, calling external APIs, running on a schedule, enforcing approvals — Power Automate is the answer.
+For any logic that shouldn't run in the browser — sending emails, processing data, calling external APIs, running on a schedule, enforcing approvals — use Power Automate.
 
-A common pattern is the **HTTP-triggered flow**: your application makes a POST request to a Power Automate HTTP trigger URL, passes a JSON payload, and the flow handles the rest. From the application's perspective, it's a simple API call. The flow handles all server-side logic without any code deployment.
+The common pattern is the **HTTP-triggered flow**: your application POSTs a JSON payload to a Power Automate HTTP trigger URL, and the flow handles the rest. From the application's side it's an API call; the flow runs all server-side logic with no code deployment.
 
 Power Automate can:
 - Send emails and Teams messages
@@ -191,9 +209,36 @@ Power Automate can:
 
 ## Designing Your Application
 
+### Where the App Lives: One Site Per App
+
+**Default to a new site for every app you build.** Not another list in an existing site, and never a folder in someone's OneDrive or in a general-purpose department Team site.
+
+The reason is ownership. A site's **Owners group holds Full Control, which includes Manage Permissions** — so the people who own the site can reach everything in it and grant themselves anything they cannot already reach. That makes the site's owners the administrators of every app inside it. Putting two apps in one site means they share an administrator list, whether or not that was ever anyone's intent, and no setting undoes it.
+
+Everything else is a bonus, and it all points the same way:
+
+- **Capacity ceilings stop being shared.** The 2,000-lists-and-libraries limit and each list's permission-scope budget are per site collection. One app per site means one app's growth can never crowd out another's.
+- **Storage and growth are legible.** One quota, one recycle bin, one set of numbers. In a shared site, "which app is consuming this?" has no answer.
+- **The custom-script window is scoped to it.** The 24-hour enablement you open to deploy one app's shell touches nothing else.
+- **Sharing settings are per site.** You can restrict external sharing and members' ability to reshare for the app that needs it, without imposing that on unrelated teams.
+- **Decommission is one delete.** When the app is retired, its data, lists, groups, and permissions go with it. Apps that lived in a shared site leave orphaned lists nobody dares remove.
+
+**Conventions that keep this manageable:**
+
+- **Create a Communication site, not a Team site**, unless the app genuinely needs an M365 group, a Teams tab, or a shared mailbox. A Team site drags along a group, a Teams presence, and a second membership model that will drift from whatever groups the app manages.
+- **Name sites on a visible convention** — `euda-<app-name>` — so growth stays readable in the admin center and in search.
+- **Join them to a hub site** for shared navigation, search scope, and branding. A hub links sites without merging their permissions: one place to find every app, no shared administrator list.
+- **Keep a site registry** — a list on the hub naming each app, its site URL, its owners, its purpose, and its last-reviewed date. One site per app trades crowding for sprawl, and the registry is what makes sprawl answerable. It is itself a small app on this platform.
+
+**The honest cost:** cross-app rollups get harder. Within one site you can query lists directly; across sites you are into search, which is security-trimmed but index-lagged by minutes to hours. If two "apps" genuinely need to query each other's data row by row, they are one app in one site — decide that before splitting them.
+
+Access control *within* the app is a separate question, and a deep one: see [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx). How many objects the app creates and what happens to old data are covered in [Storage Shape & Lifecycle](SHAREPOINT_STORAGE_LIFECYCLE_PATTERN.aspx).
+
+---
+
 ### Start With the Data Model
 
-Before writing a line of application code, design your SharePoint lists. Ask:
+Before writing application code, design your SharePoint lists. Ask:
 
 1. What are the core entities? (People, projects, requests, items, events?)
 2. What are the relationships between them? (Use Lookup columns)
@@ -208,7 +253,7 @@ Getting the list schema right before building the UI saves significant rework.
 
 ### Navigation: Views, Not Pages
 
-Because the shell is a single `.aspx` file, navigation is handled entirely in JavaScript. The recommended pattern is **view switching** — showing and hiding sections of the page rather than navigating to new URLs.
+Because the shell is a single `.aspx` file, navigation happens entirely in JavaScript. The recommended pattern is **view switching** — showing and hiding sections of the page rather than navigating to new URLs.
 
 Each "page" in your app is a `<div>` with an ID. A central `showView(viewName)` function manages which is visible:
 
@@ -221,7 +266,7 @@ function showView(view) {
 }
 ```
 
-This keeps the application feeling fast — there are no page loads between views — and keeps all application state in memory while the user navigates.
+No page loads between views keeps the app fast and keeps all application state in memory while the user navigates.
 
 ---
 
@@ -229,15 +274,43 @@ This keeps the application feeling fast — there are no page loads between view
 
 The 5,000-item query threshold is the most common performance concern for list-backed applications. Follow these rules:
 
-**Index every column you filter or sort on.** An indexed column filter bypasses the threshold entirely. Add indexes in List Settings → Indexed Columns.
+**Index every column you filter or sort on.** An indexed column filter bypasses the threshold. Add the index **at provisioning time, from your app** — see Provisioning Lists From Your Application. An index added after a list passes 5,000 items will not take, which means the lists big enough to need indexing are exactly the ones that can no longer be fixed from the UI.
 
-**Always use `$select`** to request only the columns your query needs. Fetching all columns on a large list is slow and wasteful.
+**Always use `$select`** to request only the columns your query needs. Fetching all columns on a large list is slow.
 
 **Filter before you sort.** Combine `$filter` (on indexed columns) with `$orderby` to reduce the result set before ordering it.
 
-**Page your results.** Use `$top` to limit results per request. Use `$skiptoken` (returned in the response) to fetch subsequent pages. Load more results on demand rather than up front.
+**Page your results.** Use `$top` to limit results per request. Verbose OData responses return a ready-made next-page URL in `d.__next` — follow it rather than reconstructing a `$skiptoken` query yourself. Always cap the number of pages, so a filter that matches far more than expected fails loudly instead of looping:
 
-**Design for the common case.** Most users will look at recent items, their own items, or items in a specific status. Design your default queries around those cases. Bulk exports and administrative views of everything are edge cases — handle them separately.
+```javascript
+function queryAll(url, maxPages) {
+  var limit = maxPages || 50;
+  var all   = [];
+
+  function page(nextUrl, depth) {
+    if (!nextUrl) return Promise.resolve(all);
+    if (depth >= limit) {
+      return Promise.reject(new Error('queryAll exceeded ' + limit + ' pages — narrow the $filter.'));
+    }
+    return spFetch(nextUrl)
+      .then(function (r) {
+        if (!r.ok) throw new Error('Query failed: HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        var body = (d && d.d) ? d.d : {};
+        (body.results || []).forEach(function (item) { all.push(item); });
+        return page(body.__next || null, depth + 1);
+      });
+  }
+
+  return page(url, 0);
+}
+```
+
+Paging does not beat the threshold on its own — every caller still needs a `$filter` on an indexed column.
+
+**Design for the common case.** Most users look at recent items, their own items, or items in a specific status. Design default queries around those cases. Handle bulk exports and administrative views separately.
 
 ---
 
@@ -249,19 +322,92 @@ Keep all application assets in the `_data` subfolder. Load them at runtime using
 /_api/web/getfilebyserverrelativeurl('/sites/mysite/myapp_data/styles.css')/$value
 ```
 
-This endpoint returns raw file content, bypassing SharePoint's Content-Disposition headers that would otherwise force a download. It's the mechanism that lets your shell load CSS and HTML at runtime.
+This endpoint returns raw file content, bypassing the Content-Disposition headers that would otherwise force a download. It's how your shell loads CSS and HTML at runtime.
 
-**Important limitation:** the `$value` endpoint only works for static files (CSS, HTML, JSON, images). It returns 404 for `.aspx` files — SharePoint executes those server-side rather than returning their source bytes. Do not attempt to read or modify ASPX files via this endpoint.
+**Important limitation:** the `$value` endpoint only works for static files (CSS, HTML, JSON, images). It returns 404 for `.aspx` files — SharePoint executes those server-side rather than returning their source bytes. Do not use it to read or modify ASPX files.
 
 For images and other binary assets, reference them by their direct SharePoint URL. SharePoint serves images inline by default.
 
 ---
 
+### Adding Modules Without Redeploying the Shell
+
+A shell that hardcodes its asset list forces a redeploy every time the app gains a JavaScript file:
+
+```javascript
+// The trap: adding a module here means editing the .aspx
+Promise.all([fetchAsset('styles.css'), fetchAsset('content.html'),
+             fetchAsset('platform.js'), fetchAsset('app.js')])
+```
+
+Editing the `.aspx` costs a custom-script window plus Design or Full Control at upload; adding a `_data/` file costs nothing but Contribute. Design that difference out: keep the shell's asset list fixed and let `app.js` — itself a `_data/` file — extend the load chain at runtime.
+
+The mechanism is the one the shell already uses to load `app.js`: fetch text over `$value`, wrap it in a Blob, append a `<script>`. No `eval()`, no CDN, no new capability.
+
+**`manifest.json`** in `_data/`, listing modules in load order:
+
+```json
+{ "modules": ["views.js", "catalog.js", "reports.js"] }
+```
+
+**Loader at the top of `app.js`:**
+
+```javascript
+// Fallback list: a missing or corrupt manifest degrades, never breaks the app.
+var FALLBACK_MODULES = ['views.js', 'catalog.js', 'reports.js'];
+
+function loadModules() {
+  return fetchAsset('manifest.json')
+    .then(function (text) {
+      var list = JSON.parse(text).modules;
+      return (list && list.length) ? list : FALLBACK_MODULES;
+    })
+    .catch(function () { return FALLBACK_MODULES; })
+    .then(function (modules) {
+      // Fetch in parallel; inject in manifest order — later modules may
+      // depend on earlier ones.
+      var fetches = modules.map(function (name) { return fetchAsset(name); });
+      return Promise.all(fetches).then(function (sources) {
+        return new Promise(function (resolve, reject) {
+          var last = null;
+          sources.forEach(function (src) {
+            var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+            var el  = document.createElement('script');
+            el.src = url;
+            el.async = false;   // dynamic scripts are async by default; this keeps order
+            el.onerror = function () { reject(new Error('module load failed')); };
+            document.head.appendChild(el);
+            last = el;
+          });
+          if (last) { last.onload = resolve; } else { resolve(); }
+        });
+      });
+    });
+}
+
+// The shell loads app.js and hands off to its entry point; app.js gates that
+// entry point behind loadModules(), so modules are ready before init runs.
+loadModules().then(initApp);
+```
+
+Adding a feature is now: upload the module, add one line to `manifest.json`. Both are `_data/` files, both Contribute-level, no ticket, live on the next page load.
+
+**Caveats:**
+
+- **One extra round trip** before init, for the manifest. Fetch it alongside the app's largest data asset rather than ahead of it, so the cost overlaps work already happening.
+- **Keep the fallback list current.** It is the reason a bad manifest degrades instead of white-screening. A stale fallback is a silent trap — update it whenever the manifest changes.
+- **Validate the manifest at deploy time.** Both failure modes here — a manifest naming a module that was never uploaded, and a `FALLBACK_MODULES` list that has drifted from it — deploy perfectly cleanly and only fail in the browser, the second one only on the day the manifest itself fails to load. Since nothing at runtime can catch them, the deploy script does: it parses every `manifest.json`, checks each named module exists on disk, and compares the manifest against `FALLBACK_MODULES` in the sibling `app.js`, aborting before it uploads a broken app.
+- **Load order is the manifest's order**, preserved by `async = false`. Dynamically created scripts are async by default and would otherwise execute in completion order.
+
+**New shared helpers go in `platform.js`, not the shell.** The shell is the natural place to define the app's helper surface and exactly the wrong place to grow it — every addition is ticket-gated. Keep a companion `platform.js` in `_data/` for helpers the modules share, and let the shell define only what boot itself needs.
+
+---
+
 ### Using Microsoft Graph
 
-Graph extends what you can access beyond SharePoint-specific data — but treat it as an opt-in capability, not a default.
+Graph reaches beyond SharePoint-specific data — treat it as opt-in, not a default.
 
-**Start with what needs no token.** The SharePoint user-profile REST endpoint (`/_api/SP.UserProfiles.PeopleManager/GetMyProperties`) returns display name, title, department, and a picture URL using the page's existing cookie session. For most personalization, that's enough.
+**Start with what needs no token.** The SharePoint user-profile REST endpoint (`/_api/SP.UserProfiles.PeopleManager/GetMyProperties`) returns display name, title, department, and a picture URL using the page's existing cookie session. That's enough for most personalization.
 
 **Full Graph calls need a Bearer token**, and a document-library ASPX page has no built-in way to get one — the legacy `/_api/SP.OAuth.Token/Acquire` endpoint does not issue Graph tokens for custom pages. What Graph offers once you have a token:
 
@@ -272,43 +418,178 @@ Graph extends what you can access beyond SharePoint-specific data — but treat 
 - **`/users`** — directory lookups (with appropriate permissions)
 - **`/me/presence`** — availability status
 
-The supported token path is **MSAL Browser** (`msal-browser`, served from the `_data/` folder — no CDN) against the shared **Contoso EUDA Applications** registration (see the [Packaged Python pattern](PACKAGED_PYTHON_PATTERN.md) for its details) — which requires IT to add the SharePoint origin as a SPA redirect URI on that registration first. Until that redirect is in place, get Graph-only data through a Power Automate flow instead, and don't build features that depend on browser-side Graph.
+The supported token path is **MSAL Browser** (`msal-browser`, served from the `_data/` folder — no CDN) against the shared **Contoso EUDA Applications** registration (see the [Packaged Python pattern](PACKAGED_PYTHON_PATTERN.md) for its IDs). It works once IT adds your page as a SPA redirect URI on that registration — a supported, per-page change IT will make on request.
+
+**Enabling browser Graph:**
+
+1. **Give IT the exact page URL**, all the way to the `.aspx` file — e.g. `https://contoso.sharepoint.com/sites/<site>/<library>/<app>.aspx`. Entra matches redirect URIs by exact string: no wildcards, no folder- or site-level shortcuts, and trailing slash and case count. Open the page, copy the address bar, drop everything from `?` onward.
+2. **IT adds it under the Single-page application platform** (not "Web") — that platform is what enables the MSAL.js auth-code + PKCE flow and CORS. Each distinct page that signs in needs its own redirect URI, so centralize sign-in on one page where you can.
+3. **Set MSAL's `redirectUri` to that exact string** so it matches byte-for-byte; a mismatch fails with `AADSTS50011`.
+
+Most Graph read scopes are already consented on the shared registration — `Mail.Read`, `Calendars.Read`, `Tasks.Read`/`Tasks.ReadWrite`, `People.Read`, `User.ReadBasic.All`, `Presence.Read` — so mail, calendar, Planner tasks, and directory search need no extra consent. `Group.Read.All` is **not** consented; Planner sometimes needs it to resolve plan/bucket names, which is a separate scope add. Until a page's redirect URI is registered, get Graph-only data through a Power Automate flow instead.
 
 ---
 
 ### Write Operations and the Form Digest
 
-Every POST, PATCH, or DELETE request to the SharePoint REST API must include an `X-RequestDigest` header. This is a time-limited security token that proves the request originated from an authenticated session.
+Every POST, PATCH, or DELETE request to the SharePoint REST API must include an `X-RequestDigest` header — a time-limited token proving the request came from an authenticated session.
 
-Do not read this from `_spPageContextInfo.formDigestValue` directly — that property will be undefined in document library ASPX files. Always fetch a fresh digest before writes:
+Do not read it from `_spPageContextInfo.formDigestValue` — that property is undefined in document library ASPX files. Always fetch a fresh digest before writes:
 
 ```
 POST /_api/contextinfo
 → returns d.GetContextWebInformation.FormDigestValue
 ```
 
-The digest expires after 30 minutes. Fetching it on every write (rather than caching it) ensures long-running sessions never fail with authentication errors.
+The digest expires after 30 minutes. Fetching it on every write, rather than caching it, ensures long-running sessions never fail with authentication errors.
 
 ---
 
 ### Provisioning Lists From Your Application
 
-Rather than requiring users to manually create SharePoint lists before using your application, apps should auto-provision their required lists on first run. The recommended pattern:
+Rather than requiring users to create SharePoint lists manually, apps should auto-provision their required lists on first run. The recommended pattern:
 
 1. When the data-loading call returns HTTP 404, infer the list doesn't exist yet
 2. Show a banner explaining the situation with a "Create List" button
 3. On click: call `/_api/web/lists` to create the list, then call the `/fields` endpoint for each custom column
 4. On success: hide the banner, show a toast, reload the data
 
-This makes first deployment seamless — upload the files, navigate to the app, click "Create List", and you're ready. The `Title` column is always present on new lists; only add columns beyond that.
+First deployment then becomes: upload the files, navigate to the app, click "Create List", done. The `Title` column is always present on new lists; only add columns beyond that.
 
-When adding fields, error code `-2130575306` means "field already exists" — treat this as a success rather than a failure so re-running setup is safe.
+When adding fields, error code `-2130575306` means "field already exists" — treat it as success so re-running setup is safe.
+
+#### Name Provisioned Lists After the App
+
+Sites are shared. An app that claims bare names like `Settings`, `Evidence`, or `Documents` will collide with the next app onto the site, and leaves anyone browsing site contents with no way to tell which app owns what. Prefix every provisioned list with the app's name, and resolve the name through one helper so the prefix can never be applied in one place and forgotten in another:
+
+```javascript
+function getListName(baseName, prefix) {
+  var p = (prefix || '').trim();
+  return p ? p + baseName : baseName;
+}
+// getListName('Evidence', 'ControlCatalog') -> 'ControlCatalogEvidence'
+```
+
+**Set the prefix before provisioning, and treat it as permanent.** Changing it later does not rename anything: the app simply starts looking for lists under new names, and the existing lists — with all their data — are left behind. If your app exposes the prefix as a configurable setting, say so plainly in its own admin UI, next to the field.
+
+#### Index and Enable Versioning While the List Is Empty
+
+Provisioning is the only moment a list is guaranteed to have no items, and both of these are effectively irreversible afterwards:
+
+- **An index must exist before the list passes 5,000 items.** Added later it will not take, and the filtered queries this guide recommends start failing on exactly the lists that grew big enough to need them.
+- **Versioning must be on before the first write.** Switched on later, the audit history for everything written up to that point simply does not exist — it cannot be backfilled.
+
+Each is one REST call, and both run **after** field creation, since a column cannot be indexed before it exists:
+
+```javascript
+/* Index a column — a MERGE on the field, with the field's own __metadata type. */
+function setFieldIndexed(listTitle, fieldTitle, fieldType, digest) {
+  return spFetch(SITE_URL + '/_api/web/lists/getbytitle(\'' + spPath(listTitle) +
+    '\')/fields/getbytitle(\'' + spPath(fieldTitle) + '\')', {
+    method: 'POST',
+    headers: writeHeaders(digest, { 'X-HTTP-Method': 'MERGE', 'IF-MATCH': '*' }),
+    body: JSON.stringify({ __metadata: { type: fieldType || 'SP.Field' }, Indexed: true })
+  });
+}
+
+/* Enable versioning — a MERGE on the list. */
+function enableVersioning(listTitle, digest, majorVersionLimit) {
+  return spFetch(SITE_URL + '/_api/web/lists/getbytitle(\'' + spPath(listTitle) + '\')', {
+    method: 'POST',
+    headers: writeHeaders(digest, { 'X-HTTP-Method': 'MERGE', 'IF-MATCH': '*' }),
+    body: JSON.stringify({
+      __metadata: { type: 'SP.List' },
+      EnableVersioning: true,
+      MajorVersionLimit: majorVersionLimit || 500
+    })
+  });
+}
+```
+
+Provisioning order is therefore: **create list → create fields → index → enable versioning.** Create fields sequentially rather than in parallel; SharePoint rejects concurrent schema changes on the same list.
+
+---
+
+### Writing List Items
+
+Creating lists and columns is only half of it. Three things bite the first time an app writes an item:
+
+**The item type must be fetched, not guessed.** Every item payload needs `__metadata.type` set to the list's `ListItemEntityTypeFullName`. It is derived from the list title, so any app with a configurable prefix cannot construct it reliably — ask SharePoint. It is stable for the life of the list, so cache it:
+
+```javascript
+var _entityTypeCache = {};
+
+function getEntityTypeName(listTitle) {
+  if (_entityTypeCache[listTitle]) return Promise.resolve(_entityTypeCache[listTitle]);
+  return spFetch(SITE_URL + '/_api/web/lists/getbytitle(\'' + spPath(listTitle) +
+    '\')?$select=ListItemEntityTypeFullName')
+    .then(function (r) {
+      if (!r.ok) throw new Error('Could not read list schema for ' + listTitle);
+      return r.json();
+    })
+    .then(function (d) {
+      var name = d && d.d ? d.d.ListItemEntityTypeFullName : null;
+      if (!name) throw new Error('No entity type for ' + listTitle);
+      _entityTypeCache[listTitle] = name;
+      return name;
+    });
+}
+
+function createItem(listTitle, fields) {
+  return getEntityTypeName(listTitle).then(function (entityType) {
+    return getDigest().then(function (digest) {
+      var body = { __metadata: { type: entityType } };
+      Object.keys(fields).forEach(function (k) { body[k] = fields[k]; });
+      return spFetch(SITE_URL + '/_api/web/lists/getbytitle(\'' + spPath(listTitle) + '\')/items', {
+        method: 'POST',
+        headers: writeHeaders(digest),
+        body: JSON.stringify(body)
+      });
+    });
+  });
+}
+```
+
+**`FieldTypeKind` must agree with the `__metadata` type** on field creation, or SharePoint rejects the column:
+
+| Column | `__metadata.type` | `FieldTypeKind` |
+|---|---|---|
+| Single line text | `SP.FieldText` | 2 |
+| Multi-line text | `SP.FieldMultiLineText` | 3 |
+| Date and time | `SP.FieldDateTime` | 4 |
+| Choice | `SP.FieldChoice` | 6 |
+| Yes/No | `SP.Field` | 8 |
+| Number | `SP.FieldNumber` | 9 |
+| Currency | `SP.FieldCurrency` | 10 |
+| Person or group | `SP.FieldUser` | 20 |
+
+**Person columns take a numeric id, not a login name.** Write to `<FieldName>Id`, resolving the id first:
+
+```javascript
+function ensureUser(loginName, digest) {
+  return spFetch(SITE_URL + '/_api/web/ensureuser', {
+    method: 'POST',
+    headers: writeHeaders(digest),
+    body: JSON.stringify({ logonName: loginName })
+  }).then(function (r) {
+    if (!r.ok) throw new Error('Could not resolve user: ' + loginName);
+    return r.json();
+  }).then(function (d) { return d.d.Id; });
+}
+// then: createItem(listTitle, { Title: 'Review', AssignedToId: userId })
+```
 
 ---
 
 ### Security Considerations
 
-**Never put sensitive data in JavaScript.** Any config values, connection strings, or API keys embedded in your shell or data files are readable by anyone with access to the document library. Store secrets in a restricted SharePoint list with broken inheritance and read them via a Power Automate flow.
+**Three different things get called "sensitive," and the rules for them are not the same.** Collapsing them is the most common misreading of this guide — it leads people to believe the platform cannot hold confidential business data, which is exactly backwards.
+
+**Secrets — Fixed.** Anything that *grants access* — API keys, connection strings, tokens, Power Automate trigger URLs — must never be embedded in the shell or in `_data/`. A browser can read everything the page can read, so "hidden in JavaScript" is not hidden at all. Put them in a restricted list with broken inheritance, or behind a Power Automate flow that holds the credential server-side.
+
+**Confidential business data — supported, and this is what the platform is for.** Salaries, deal terms, HR records, customer contracts, performance reviews, anything confidential-but-not-regulated: store it. Nothing in this guide says such data cannot live in SharePoint. What it says is that **the ACL protects it, not your JavaScript** — which is the entire subject of [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx). Hiding a field in the UI is not protection; giving it its own securable object is.
+
+**Regulated data — escalate.** PHI, payment card data, export-controlled material. Out of scope for the citizen tier, not because SharePoint cannot hold it but because the retention, attestation, and controls around it are IT-owned. That makes it a conversation to start, not a permanent no.
 
 **Use SharePoint groups for access control.** Check group membership via the REST API to conditionally show or hide features. For true enforcement, restrict item-level permissions on the underlying lists — don't rely solely on UI hiding.
 
@@ -320,15 +601,21 @@ When adding fields, error code `-2130575306` means "field already exists" — tr
 
 ### Requirements
 
-1. **Custom scripts must be enabled on the target site before uploading `.aspx` files.** Open a help desk ticket and request that your SharePoint site be enabled for custom script deployments. The enablement window is 24 hours — upload all application shell files during this window. Files uploaded and registered during the active window retain their allowed status after the reset.
+1. **Custom scripts must be enabled on the target site before uploading `.aspx` files.** Open a help desk ticket requesting custom script deployments for your SharePoint site. The enablement window is 24 hours — upload all shell files during it. Files uploaded and registered while the window is active retain their allowed status after the reset.
 
-   If you need to update the shell `.aspx` file in the future, request enablement again before uploading. Files in the `_data/` folder (CSS, HTML, JSON) can be updated at any time with no ticket required.
+   Updating the shell `.aspx` later requires requesting enablement again before uploading. Files in the `_data/` folder (CSS, HTML, JSON) can be updated any time with no ticket.
+
+   **This cost applies only when a shell actually changes.** The deploy script compares local shells against the remote inventory and skips the tenant-admin sign-in entirely when none needs uploading, so a `_data/`-only deploy — which, with runtime module loading, is nearly all of them — needs Contribute and nothing more. Use `-ForceEnablement` to run the check anyway.
+
+   Never re-upload an *unchanged* `.aspx` outside the window: it strips the executable flag, and the app starts downloading instead of running.
 
    > A self-service process for enabling custom scripts is planned and will eventually replace the help desk ticket step.
 
-2. **Files must be uploaded to a standard Document Library** — not Site Pages. Site Pages is a special page library that processes `.aspx` files through SharePoint's master page and publishing pipeline, which conflicts with how this platform works. Use any regular document library (the default "Documents" library works, or create a dedicated one such as "Sample Sites"). If you accidentally upload to Site Pages, the app will fail to load its CSS and HTML assets.
+2. **Deploy to the app's own site**, per [One Site Per App](#where-the-app-lives-one-site-per-app) — the enablement window above is scoped to that site, which is one of the reasons not to share one.
 
-3. **The person uploading the `.aspx` shell file must have the "Add and Customize Pages" permission.** This is a separate, user-level requirement on top of the site-level enablement window. SharePoint stamps an execute flag on uploaded files based on the uploader's permissions at the time of upload — if that flag is not set, the file downloads instead of loading in the browser.
+3. **Files must be uploaded to a standard Document Library** — not Site Pages. Site Pages processes `.aspx` files through SharePoint's master page and publishing pipeline, which conflicts with this platform. Use any regular document library (the default "Documents", or a dedicated one such as "Sample Sites"). Uploading to Site Pages by accident makes the app fail to load its CSS and HTML assets.
+
+4. **The person uploading the `.aspx` shell file must have the "Add and Customize Pages" permission.** This is a separate, user-level requirement on top of the site-level enablement window. SharePoint stamps an execute flag on uploaded files based on the uploader's permissions at upload time — without it, the file downloads instead of loading in the browser.
 
    This permission is only included in two built-in SharePoint permission levels:
 
@@ -340,9 +627,9 @@ When adding fields, error code `-2130575306` means "field already exists" — tr
    | Contribute | ❌ No |
    | Read | ❌ No |
 
-   Users with Edit or Contribute access can upload the file but it will never execute — it will download instead, even during the enablement window. The fix is to grant the deploying user **Design** or **Full Control** on the document library.
+   Users with Edit or Contribute access can upload the file but it will never execute — it downloads instead, even during the enablement window. The fix is to grant the deploying user **Design** or **Full Control** on the document library.
 
-   > **Practical workflow:** the IT admin or a designated deployer (with Design or Full Control) uploads the `.aspx` shell file. Everyone else on the team can update files in the `_data/` folder freely — those are plain files and work with Contribute-level access.
+   > **Practical workflow:** a designated deployer (Design or Full Control) uploads the `.aspx` shell file. Everyone else updates `_data/` files freely — those are plain files and work with Contribute access.
 
 ### Upload Order
 
@@ -355,7 +642,9 @@ When adding fields, error code `-2130575306` means "field already exists" — tr
 
 ### Updating Your Application
 
-Because the shell only loads assets at runtime, most updates only require replacing files in the `_data` folder. The shell itself rarely needs to change after initial deployment. CSS and HTML updates take effect immediately on next page load with no re-registration required.
+**No update should require changing the shell.** Because the shell loads assets at runtime, features, styles, markup, and entirely new JavaScript modules all ship by replacing or adding files in `_data/` — Contribute-level, no ticket, effective on the next page load.
+
+If an update appears to need a shell edit, that is a signal, not a scheduling problem: the shell is holding logic that belongs in `_data/`. Move it instead of booking a custom-script window. The genuine exceptions are boot-level changes — renaming the data folder, adding a canonical helper — which should be rare to nonexistent after initial deployment.
 
 ---
 
@@ -393,9 +682,17 @@ Because the shell only loads assets at runtime, most updates only require replac
 | Send email | Power Automate HTTP flow |
 | Run logic on schedule | Power Automate scheduled flow |
 | Store app config / lookup tables | JSON file in `_data` folder — fetch via `$value`, parse with `JSON.parse()` |
-| Write a JSON file | REST `files/add(url='...',overwrite=true)` with `ArrayBuffer` body |
+| Write a JSON file | REST `files/add(url='...',overwrite=true)` with `ArrayBuffer` body — then register it in `-SeedOnlyFiles` so deploys never overwrite it |
+| Write a list item | Fetch `ListItemEntityTypeFullName` for `__metadata.type` (cache it); person columns take `<Field>Id` from `/_api/web/ensureuser` |
+| Index a column / enable versioning | At provisioning, while the list is empty — MERGE `Indexed:true` on the field, `EnableVersioning:true` on the list |
+| Name a provisioned list | Prefix with the app name via one `getListName()` helper; set the prefix before provisioning — changing it later strands the existing lists |
+| Page a large result set | Follow `d.__next` with a page cap, plus a `$filter` on an indexed column |
 | Load CSS/HTML at runtime | REST `$value` endpoint (static files only — not `.aspx`) |
+| Add a JS module without a shell redeploy | `manifest.json` + loader in `app.js` — see Adding Modules Without Redeploying the Shell |
+| How big may the shell be? | There is no size limit. The test is behavioural: no feature code, no application state |
 | Where to deploy files | Standard Document Library only — **not** Site Pages |
-| Access control | SharePoint groups + item-level permissions |
-| Audit trail | List versioning |
+| Where to put a new app | Its own communication site, `euda-<app>`, joined to a hub and listed in the site registry |
+| Access control | SharePoint groups + item-level permissions — see [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx) |
+| Audit trail | List versioning — see [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx) |
+| Sizing, sprawl, and archiving | See [Storage Shape & Lifecycle](SHAREPOINT_STORAGE_LIFECYCLE_PATTERN.aspx) |
 | Large data sets | Indexed columns + paged queries |

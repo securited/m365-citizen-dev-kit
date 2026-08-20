@@ -1,6 +1,8 @@
 # Claude Code — Worker Pool Pattern: Project Prompt
 
-> **Worker Pool Pattern — v1.2** · updated 2026-07-08. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Worker Pool Pattern — v1.4** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+
+> **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
 
 Copy the block below as your first message when starting a new worker-pool project. **Attach [PACKAGED_PYTHON_PROMPT.md](PACKAGED_PYTHON_PROMPT.md) with the same message** — this pattern builds on the Packaged Python pattern, and every rule there is binding too. Customize the bracketed sections and replace every `<...>` placeholder.
 
@@ -15,6 +17,18 @@ Pattern C (Streamlit) app and every rule there (runtime, approved stack,
 canonical launch.cmd, Streamlit bootstrap with first-run hygiene, security
 rules) is binding. This prompt adds the coordination rules. Deviation from
 either is a defect.
+
+## How to read this prompt
+
+Sections marked (fixed) are binding: deviation is a defect. Sections marked
+(default) are the recommended choice, NOT a prohibition. If a default does not
+fit this project, say so, propose the alternative with its trade-off, and get
+the user's agreement before building it — then note the decision in the app's
+README.
+
+Never silently deviate from a default, and never tell the user that something a
+default merely discourages is impossible. If a (fixed) rule is the real
+obstacle, stop and escalate rather than working around it.
 
 ## Architecture (fixed)
 
@@ -53,7 +67,7 @@ Use space-free internal field names exactly as listed.
 - A job failure must never kill the worker loop. An unknown JobType is a
   Failed run, not a crash.
 
-## Job rules
+## Job rules (fixed — idempotency is the pattern's contract)
 
 - Jobs are entries in a code catalog (dict of JobType -> function) written by
   the app owner. Schedule items select a JobType and pass ParametersJson.
@@ -64,7 +78,7 @@ Use space-free internal field names exactly as listed.
 - Files a job overwrites in the document library are seed-only artifacts: tell
   the user to register them in the deploy script's $SeedOnlyFiles list.
 
-## SharePoint access
+## SharePoint access (fixed)
 
 - Authenticate as the user with azure-identity InteractiveBrowserCredential +
   TokenCachePersistenceOptions (DPAPI cache), using the shared IT-owned
@@ -79,7 +93,7 @@ Use space-free internal field names exactly as listed.
 - Polling etiquette: user-configurable 30–180 s interval (default 60) with
   jitter; honor Retry-After on 429/503; tenacity for transient retries.
 
-## Worker UX requirements
+## Worker UX requirements (default, except the race proof)
 
 - Connect is one click ("Sign in & join the pool") and auto-provisions the
   lists; a clear message tells users the contract: while this tab is open,
@@ -95,14 +109,14 @@ Use space-free internal field names exactly as listed.
   winner = proof failed, say so loudly.
 - Link to the status page from the sidebar.
 
-## Status page requirements
+## Status page requirements (default)
 
 - Read-only: schedules with due-state pills, recent runs with status pills,
   machines seen in the last 24 h, and the latest job output with its age.
 - Before the lists exist, show "open the worker app once to create them" —
   never a raw error. Auto-refresh every ~30 s.
 
-## Out of scope — stop and escalate
+## Out of scope — stop and escalate (fixed)
 
 - Guaranteed execution times, sub-minute schedules, exactly-once side effects
 - Jobs that must run around the clock regardless of who is online

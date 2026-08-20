@@ -25,8 +25,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.claude/` local preview (`serve.ps1`) and run configs (`launch.json`);
   `docs/adoption-notice.md` and `docs/script-enablement-self-service.md`.
 
+### Added
+- Two **supporting patterns** (de-branded), applied alongside a core pattern:
+  **SharePoint Permissions & Auditing 1.1** — site/list/folder/file permissions
+  as the app's authorization layer, plus a no-code audit trail; and
+  **Storage Shape & Lifecycle 1.1** — object counts, the mechanism that can
+  carry them, and archiving as data ages.
+- `hello-world` rebuilt on the platform/manifest architecture: a boot-only
+  `.aspx` shell (~6.8 KB) loading `platform.js` + `app.js`, with feature modules
+  (`dashboard.js`, `messages.js`, `metrics.js`) listed in
+  `hello-world_data/manifest.json` and loaded at runtime — adding a module never
+  redeploys the shell.
+
 ### Changed
-- **Packaged Python 1.2 → 1.3** (de-branded): shared app registration confirmed
+- Pattern updates (de-branded): **SharePoint App 1.1 → 1.7** (SPA-redirect Graph
+  procedure, shell content rule + runtime module loading, seed-only config,
+  inferred enablement, manifest pre-flight, one-site-per-app siting),
+  **Packaged Python 1.3 → 1.6** (quieter Pattern C startup, stop-the-app banner,
+  HOW-TO-RUN guidance), **Worker Pool 1.2 → 1.4**, **Claude Artifacts 1.0 → 1.2**.
+- All six guides now label rules **Fixed** (deviation breaks the platform, its
+  security model, or its audit trail) vs **Default** (the right answer absent a
+  specific reason), with a protocol for departing from a default.
+- Earlier: **Packaged Python 1.2 → 1.3** (de-branded): shared app registration confirmed
   consented for the SharePoint list path (a typical app needs nothing from IT);
   recommends a blank Communication site as the team release channel.
 - **Worker Pool 1.1 → 1.2** (de-branded): registration-consent verification

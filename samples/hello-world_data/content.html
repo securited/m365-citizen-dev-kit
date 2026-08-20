@@ -153,7 +153,8 @@
 
       <h4>Dashboard</h4>
       <ul class="pattern-list">
-        <li><strong>Shell + Data Pattern</strong> — The shell <code>.aspx</code> is under 15 KB; all CSS and HTML are loaded from <code>hello-world_data/</code> via the SharePoint REST <code>$value</code> endpoint at boot time</li>
+        <li><strong>Shell + Data Pattern</strong> — The shell <code>.aspx</code> holds boot logic only, with no feature code and no application state; all CSS and HTML load from <code>hello-world_data/</code> via the SharePoint REST <code>$value</code> endpoint at boot time</li>
+        <li><strong>Runtime Module Loading</strong> — The shell fetches a <em>fixed</em> asset list, then <code>app.js</code> reads <code>manifest.json</code> and loads each feature module (<code>dashboard.js</code>, <code>messages.js</code>, <code>metrics.js</code>) as a Blob-wrapped <code>&lt;script&gt;</code>. Adding a module means uploading it and adding one line to the manifest — both Contribute-level, so the shell never needs a redeploy</li>
         <li><strong>Authentication</strong> — Identity resolved via <code>/_api/web/currentUser</code> with graceful fallback to <code>_spPageContextInfo</code> when available (Site Pages only)</li>
         <li><strong>Site URL Derivation</strong> — <code>deriveSiteUrl()</code> extracts the site root from <code>window.location</code> so the app works in any document library without hardcoding</li>
         <li><strong>Microsoft Graph</strong> — Profile photo and extended profile fields fetched from <code>/me</code> using the session's Bearer token</li>
@@ -198,7 +199,7 @@
         <tbody>
           <tr>
             <td><code>hello-world.aspx</code></td>
-            <td>Shell — derives paths, loads assets, boots app (&lt;15 KB)</td>
+            <td>Shell — boot logic only: derives paths, loads assets, boots app</td>
           </tr>
           <tr>
             <td><code>hello-world_data/styles.css</code></td>
@@ -207,6 +208,30 @@
           <tr>
             <td><code>hello-world_data/content.html</code></td>
             <td>All application markup</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/platform.js</code></td>
+            <td>Shared SharePoint helpers — digest, write headers, toasts, errors, overlay, list provisioning, Power Automate. New shared helpers go here, never in the shell</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/app.js</code></td>
+            <td>Configuration, the module loader, navigation, and init</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/manifest.json</code></td>
+            <td>Feature modules to load, in order — the file you edit to add a feature</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/dashboard.js</code></td>
+            <td>Feature module — identity and the Graph profile card</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/messages.js</code></td>
+            <td>Feature module — list CRUD, paging, and first-run provisioning</td>
+          </tr>
+          <tr>
+            <td><code>hello-world_data/metrics.js</code></td>
+            <td>Feature module — status cards and sparklines over the JSON dataset</td>
           </tr>
           <tr>
             <td><code>hello-world_data/metrics.json</code></td>

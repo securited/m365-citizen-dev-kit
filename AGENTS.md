@@ -11,7 +11,7 @@ This file is the **canonical AI context** for the repo. `CLAUDE.md` imports it v
 | Path | Purpose | Published? |
 |---|---|---|
 | `README.md`, `AGENTS.md`, `CLAUDE.md` | Front door + canonical AI context | n/a |
-| `patterns/` | One set per development pattern: guide (`*_PATTERN.md`), starter prompt (`*_PROMPT.md`), published SharePoint page (`*_PATTERN.aspx`); plus the hub `DEVELOPMENT_PATTERNS.aspx` and its `DEVELOPMENT_PATTERNS_data/` (`samples.json`, `versions.json`) | Yes — to a SharePoint library |
+| `patterns/` | One set per pattern: guide (`*_PATTERN.md`), starter prompt (`*_PROMPT.md`), published SharePoint page (`*_PATTERN.aspx`). Four core patterns (SharePoint App, Claude Artifacts, Packaged Python, Worker Pool) + two supporting (SharePoint Permissions & Auditing, Storage Shape & Lifecycle). Plus the hub `DEVELOPMENT_PATTERNS.aspx` and its `DEVELOPMENT_PATTERNS_data/` (`samples.json`, `versions.json`) | Yes — to a SharePoint library |
 | `samples/` | Sample apps: SharePoint `.aspx` demos + `_data/` companions, and single-file Python apps (`app.py` + `launch.cmd` + `README.md`), incl. the `migrate-existing-app` example | Yes |
 | `deploy/` | PnP.PowerShell script that syncs `patterns/` + `samples/` to a SharePoint document library | No |
 | `.claude/` | Local dev: `serve.ps1` static preview server, `launch.json` run configs | No |
@@ -46,7 +46,8 @@ No build-generated files. If a section is empty after a change, state "None".
 ## Conventions (required)
 
 - **Public + anonymized.** All org-specific identifiers are Contoso placeholders (`contoso.sharepoint.com` / `Contoso` / `<your-...>`). A pre-publish grep for org markers (see the plan) must come back clean before any push.
-- **Shell + Data (SharePoint apps)** — keep `.aspx` shells small and inert; put CSS/HTML/JSON in `<app>_data/` so most updates avoid the custom-script enablement window. Each `.aspx` fetches its companion files from its own library folder (`PAGE_DIR`-relative), so a page and its `_data/` must stay co-located.
+- **Shell + Data (SharePoint apps)** — the `.aspx` shell holds **boot logic only** (asset loading, canonical helpers, loading/error UI) and no feature code or app state; there is no size limit, but reference shells weigh ~6–8 KB and past ~15 KB logic has leaked in. Feature code, CSS, HTML, and JSON live in `<app>_data/`, so most updates avoid the custom-script enablement window. Each `.aspx` fetches its companion files from its own library folder (`PAGE_DIR`-relative), so a page and its `_data/` must stay co-located.
+- **Module manifest (SharePoint apps)** — feature modules are listed in `<app>_data/manifest.json` and loaded in order by `app.js`; `FALLBACK_MODULES` in `app.js` must match that list exactly, and every named module must exist on disk (the deploy script pre-flights this). Adding a module = edit the manifest + upload the file; the shell never changes.
 - **One folder per Python app** — exactly `app.py` (PEP 723 header), `launch.cmd` (canonical launcher, copied verbatim), `README.md` (owner, pattern, last-reviewed date). Dependencies declared only in the PEP 723 block.
 - **Pattern versioning** — `patterns/DEVELOPMENT_PATTERNS_data/versions.json` is the single source of truth for pattern versions; each `*_PATTERN.md`/`*_PROMPT.md` carries a synced version header. Dual-bump in the same commit when a pattern changes.
 - **No secrets, ever** — these files are committed, loaded into AI context, and synced to model providers. No passwords, keys, tokens, or internal URLs. Identity is the running user (Windows session / Entra sign-in); reference a secret store, never embed.

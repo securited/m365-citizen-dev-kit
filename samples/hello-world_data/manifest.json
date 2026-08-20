@@ -1,0 +1,8 @@
+{
+  "modules": [
+    "dashboard.js",
+    "messages.js",
+    "metrics.js"
+  ],
+  "_comment": "Feature modules, loaded in this order by app.js after the shell boots. Adding one here plus uploading the file is the entire deployment step — the .aspx shell never changes. Keep FALLBACK_MODULES in app.js in sync."
+}

@@ -1,8 +1,10 @@
 # Claude Code — SharePoint App Pattern: Project Prompt
 
-> **SharePoint App Pattern — v1.1** · updated 2026-07-06. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **SharePoint App Pattern — v1.7** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
-Copy and paste the block below as your first message when starting a new SharePoint application project. Customize the bracketed sections for your specific project.
+> **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
+
+Paste the block below as your first message when starting a new SharePoint application project. Customize the bracketed sections for your project.
 
 ---
 
@@ -11,20 +13,37 @@ You are building a custom web application that runs inside Microsoft SharePoint 
 
 ---
 
+## How to read this prompt
+
+Sections marked (fixed) are binding: deviation is a defect. Sections marked
+(default) are the recommended choice, NOT a prohibition. If a default does not
+fit this project, say so, propose the alternative with its trade-off, and get
+the user's agreement before building it — then note the decision in the app's
+README.
+
+Never silently deviate from a default, and never tell the user that something a
+default merely discourages is impossible. If a (fixed) rule is the real
+obstacle, stop and escalate rather than working around it.
+
 ## Platform Architecture
 
-### Shell + Data Pattern (required)
+### Shell + Data Pattern (fixed)
 
 Every app consists of:
-1. A lightweight shell: `[app-name].aspx` — target under 15KB, single `<script>` block, no external dependencies in the shell itself
+1. A boot-only shell: `[app-name].aspx` — asset loading, the canonical helpers below, loading/error UI, hand-off to init. **No feature code, no application state.** Single `<script>` block, no external dependencies in the shell itself.
 2. A data folder: `[app-name]_data/` containing:
    - `styles.css` — all CSS
    - `content.html` — all HTML markup for the app body
-   - Additional assets as needed (JS modules, config JSON, images)
+   - `app.js` — feature code, plus the module loader below
+   - `platform.js` — shared helpers the modules build on
+   - `manifest.json` — additional modules to load, in order
+   - Additional assets as needed (config JSON, images)
 
 The shell loads CSS and HTML at runtime via the SharePoint REST $value endpoint. This is intentional and required — do not collapse everything back into a single file.
 
-### Canonical Helpers (define these first — every snippet below uses them)
+**The shell must not change after initial deployment.** Editing the `.aspx` requires a custom-script window plus Design or Full Control at upload; `_data/` files need only Contribute. So the shell's asset list stays fixed and everything else ships through `_data/`. Do not put feature code, view logic, or app state in the shell, and do not grow its helper surface — new helpers go in `platform.js`.
+
+### Canonical Helpers (fixed — define these first; every snippet below uses them)
 
 ```js
 // Encode single-quoted path segments for SharePoint REST URLs
@@ -44,7 +63,7 @@ function spFetch(url, opts) {
 }
 ```
 
-### File Loading Pattern
+### File Loading Pattern (fixed)
 
 The shell derives the site URL and data folder path dynamically:
 
@@ -79,13 +98,65 @@ function fetchAsset(filename) {
 }
 ```
 
-The `$value` endpoint returns raw file bytes for CSS/HTML/JSON assets. **Do not** use it on `.aspx` files — SharePoint executes them server-side and returns 404 from this endpoint.
+The `$value` endpoint returns raw file bytes for CSS/HTML/JSON assets, bypassing Content-Disposition headers. **Do not** use it on `.aspx` files — SharePoint executes them server-side and returns 404. Do not use any other endpoint for loading text assets.
 
-The `$value` endpoint returns raw file bytes, bypassing Content-Disposition headers. Do not use any other endpoint for loading text assets.
+### Module Loading (fixed for any app beyond one JS file)
+
+The shell fetches a **fixed** asset list. Never add a module by editing it — that is a ticket-gated redeploy. Instead `app.js`, itself a `_data/` file, extends the load chain at runtime using the same mechanism the shell used to load it: fetch text, wrap in a Blob, append a `<script>`. No `eval()`, no CDN.
+
+`manifest.json` in `_data/` lists modules in load order:
+
+```json
+{ "modules": ["views.js", "catalog.js", "reports.js"] }
+```
+
+Loader at the top of `app.js`:
+
+```js
+// Fallback list: a missing or corrupt manifest degrades, never breaks the app.
+var FALLBACK_MODULES = ['views.js', 'catalog.js', 'reports.js'];
+
+function loadModules() {
+  return fetchAsset('manifest.json')
+    .then(function (text) {
+      var list = JSON.parse(text).modules;
+      return (list && list.length) ? list : FALLBACK_MODULES;
+    })
+    .catch(function () { return FALLBACK_MODULES; })
+    .then(function (modules) {
+      // Fetch in parallel; inject in manifest order — later modules may
+      // depend on earlier ones.
+      var fetches = modules.map(function (name) { return fetchAsset(name); });
+      return Promise.all(fetches).then(function (sources) {
+        return new Promise(function (resolve, reject) {
+          var last = null;
+          sources.forEach(function (src) {
+            var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+            var el  = document.createElement('script');
+            el.src = url;
+            el.async = false;   // dynamic scripts are async by default; this keeps order
+            el.onerror = function () { reject(new Error('module load failed')); };
+            document.head.appendChild(el);
+            last = el;
+          });
+          if (last) { last.onload = resolve; } else { resolve(); }
+        });
+      });
+    });
+}
+
+// The shell loads app.js and hands off to its entry point; app.js gates that
+// entry point behind loadModules(), so modules are ready before init runs.
+loadModules().then(initApp);
+```
+
+Adding a feature = upload the module + add one line to `manifest.json`. Both `_data/`, both Contribute-level, no ticket. Fetch the manifest alongside the app's largest data asset so its round trip overlaps existing work.
+
+**Keep `FALLBACK_MODULES` byte-identical to the manifest's module list, and update both in the same commit.** A manifest naming a module that was never uploaded, and a drifted fallback list, both deploy cleanly and fail only in the browser — the second only on the day the manifest itself fails to load. The deploy script enforces this pre-flight (parses every `manifest.json`, checks each module exists, compares against `FALLBACK_MODULES`) and aborts rather than shipping a broken app.
 
 ---
 
-## Authentication & Identity
+## Authentication & Identity (fixed)
 
 ### No login required — ever.
 
@@ -158,7 +229,7 @@ The digest expires after 30 minutes; calling `getDigest()` on every write ensure
 
 ---
 
-## SharePoint REST API Patterns
+## SharePoint REST API Patterns (fixed)
 
 Base URL: `SITE_URL + '/_api/web'` (use `deriveSiteUrl()` — do not reference `_spPageContextInfo.webAbsoluteUrl` directly)
 
@@ -221,14 +292,38 @@ spFetch(SITE_URL + '/_api/web/getfolderbyserverrelativeurl(\'' + spPath(DATA_FOL
 
 Use JSON files (not lists) for: app config, static lookup tables, reference data, seed data loaded once. Use lists when data needs OData querying, grows unbounded, is written by end users, or requires item-level permissions. Files have no transaction safety — avoid concurrent writes.
 
+**Any file the app writes back is a seed locally and live state remotely.** The deployed copy holds what an admin configured; the copy in the repo is only a first-run seed. A deploy that uploads it silently reverts every setting, with no error. Every file passed to `files/add(overwrite=true)` at runtime must be registered as seed-only in the deploy script (`-SeedOnlyFiles`), which uploads it when missing, never overwrites it, and never cleans it up as stale. Rule: **if the app can write it, the deploy must not.**
+
+### Writing list items
+
+- The payload needs `__metadata.type` = the list's `ListItemEntityTypeFullName`. **Fetch it, never guess it** — it derives from the list title, which a configurable prefix makes unpredictable. Cache it; it is stable per list.
+
+```js
+var _entityTypeCache = {};
+function getEntityTypeName(listTitle) {
+  if (_entityTypeCache[listTitle]) return Promise.resolve(_entityTypeCache[listTitle]);
+  return spFetch(SITE_URL + '/_api/web/lists/getbytitle(\'' + spPath(listTitle) +
+    '\')?$select=ListItemEntityTypeFullName')
+    .then(function (r) { if (!r.ok) throw new Error('No schema for ' + listTitle); return r.json(); })
+    .then(function (d) {
+      var name = d.d.ListItemEntityTypeFullName;
+      _entityTypeCache[listTitle] = name;
+      return name;
+    });
+}
+```
+
+- **Person columns take a numeric id in `<FieldName>Id`**, not a login name. Resolve with `POST /_api/web/ensureuser` (body `{ "logonName": "user@company.com" }`) and use `d.d.Id`.
+- `FieldTypeKind` must agree with the `__metadata` type on field creation or SharePoint rejects the column. See the table in List Provisioning below.
+
 ---
 
-## List Design Rules
+## List Design Rules (fixed: indexes and versioning at provisioning. default: the schema)
 
-1. **Index every column used in $filter or $orderby.** Unindexed column queries fail above 5,000 items.
+1. **Index every column used in $filter or $orderby**, and create the index at provisioning time from the app — not from List Settings later. An index added after the list passes 5,000 items will not take.
 2. **Always use $select.** Never fetch all columns unless building an admin/export view.
 3. **Always use $top.** Default SharePoint page size is 100; set explicitly.
-4. **Page large result sets** using `$skiptoken` from the `__next` link in responses.
+4. **Page large result sets** by following the ready-made `d.__next` URL that verbose OData returns — do not reconstruct a `$skiptoken` query. Always cap the page count so a too-broad filter fails loudly instead of looping; paging alone does not beat the threshold, so still `$filter` on an indexed column.
 5. **Use $expand for lookups** — e.g. `$expand=AssignedTo&$select=AssignedTo/Title,AssignedTo/EMail`
 6. The list view threshold is 5,000 items per query, not a list size limit. A list can hold millions of items.
 
@@ -243,7 +338,7 @@ $filter=substringof('search', Title)          // contains (use Search API for fu
 
 ---
 
-## Navigation Pattern
+## Navigation Pattern (default)
 
 All navigation is in-page view switching. No page loads between sections.
 
@@ -262,14 +357,15 @@ function showView(view) {
 
 ---
 
-## Shell Code Constraints (enforced by SharePoint content scanner)
+## Shell Code Constraints (fixed — enforced by the SharePoint content scanner)
 
 - **No `document.write()`** — use `innerHTML` / `textContent` / DOM methods
 - **No `window.open()`** — use `<a target="_blank">` or in-page modal overlays
 - **No top-level `eval()`**
 - **No inline event handlers that pass HTML strings to execution contexts**
 - **No external CDN script tags** in the shell — load all dependencies from the `_data` folder or inline them
-- **Keep shell under 15KB** — all content goes in `content.html`, all styles in `styles.css`
+- **Shell holds boot logic only** — no feature code, no app state; content in `content.html`, styles in `styles.css`, logic in `_data/` modules. The test is behavioural: would this code ever change in order to add a feature? If yes, it goes in `_data/`
+- **There is NO size limit on the shell.** Do not invent one, do not minify or golf to hit a number, and do not tell the user a shell is "too big". Reference shells run 6–8 KB; past roughly 15 KB, suspect that logic has leaked in and move it out — that is a smell to investigate, not a budget
 - **Single `<script>` block** in the shell
 - **Max line length: no hard limit but keep under 200 chars** for readability and scanner safety
 
@@ -277,7 +373,7 @@ For JSON preview or any "render user content as HTML" feature, use a pre-existin
 
 ---
 
-## Microsoft Graph
+## Microsoft Graph (fixed — the token path is the only supported one)
 
 Graph is optional — reach for it deliberately, not by default.
 
@@ -286,11 +382,11 @@ Graph is optional — reach for it deliberately, not by default.
 GET /_api/SP.UserProfiles.PeopleManager/GetMyProperties
 ```
 
-**Full Graph calls** (`/me/presence`, `/me/manager`, `/users` directory search, `/me/photo/$value`) require a Bearer token, and a document-library ASPX page has no built-in way to get one — the legacy `/_api/SP.OAuth.Token/Acquire` endpoint does NOT issue Graph tokens for custom pages; do not use it. The supported path is `msal-browser` (loaded from the `_data/` folder — no CDN) against the shared "Contoso EUDA Applications" registration (client id `<your-entra-client-id>`, tenant id `<your-tenant-id>`) — which works only if IT has added this SharePoint origin as a SPA redirect URI on that registration. If that redirect is not confirmed, treat browser Graph as unavailable and get the data through a Power Automate flow instead. Ask before building any feature that depends on Graph.
+**Full Graph calls** (`/me/presence`, `/me/manager`, `/users` directory search, `/me/photo/$value`) require a Bearer token, and a document-library ASPX page has no built-in way to get one — the legacy `/_api/SP.OAuth.Token/Acquire` endpoint does NOT issue Graph tokens for custom pages; do not use it. The supported path is `msal-browser` (loaded from the `_data/` folder — no CDN) against the shared "Contoso EUDA Applications" registration (client id `<your-entra-client-id>`, tenant id `<your-tenant-id>`). It needs a SPA redirect URI for THIS page on that registration: give IT the exact page URL down to the `.aspx` file (Entra matches redirect URIs exactly — no wildcards; trailing slash and case count), IT adds it under the Single-page application platform, and set MSAL `redirectUri` to that exact string (a mismatch fails with AADSTS50011). Already-consented scopes cover mail (`Mail.Read`), calendar (`Calendars.Read`), Planner tasks (`Tasks.Read`), and directory search (`People.Read`, `User.ReadBasic.All`); `Group.Read.All` is NOT consented (Planner may need it for plan names — a separate scope add). Until this page's redirect URI is registered, use a Power Automate flow instead.
 
 ---
 
-## Power Automate Integration
+## Power Automate Integration (default)
 
 Use HTTP-triggered Power Automate flows for:
 - Sending email or Teams messages
@@ -312,7 +408,7 @@ Store flow trigger URLs in a restricted SharePoint list (broken permissions inhe
 
 ---
 
-## UI/UX Conventions
+## UI/UX Conventions (default)
 
 - **Loading state**: Show immediately on shell load; use animated dots or spinner
 - **Error state**: Display inline near the affected component, not as alert()
@@ -353,12 +449,35 @@ Store flow trigger URLs in a restricted SharePoint list (broken permissions inhe
 
 ---
 
-## List Provisioning Pattern
+## List Provisioning Pattern (fixed)
 
 Apps should auto-provision their required lists on first run rather than requiring manual setup. Show a banner with a "Create List" button when the list doesn't exist (detected by a 404 on the items endpoint).
 
+**Name every provisioned list after the app.** Sites are shared: bare names like `Settings` or `Evidence` collide with the next app and are unattributable in site contents. Resolve names through a single helper so the prefix is never applied inconsistently:
+
 ```js
-// Field type constants: 2 = Single line text, 3 = Multi-line text, 4 = Number, 8 = Boolean
+function getListName(baseName, prefix) {
+  var p = (prefix || '').trim();
+  return p ? p + baseName : baseName;      // 'ControlCatalog' + 'Evidence'
+}
+```
+
+Set the prefix **before** provisioning and treat it as permanent — changing it later does not rename anything; the app looks for new names and the existing lists, with all their data, are stranded. If the prefix is user-configurable, say that in the app's own admin UI.
+
+`FieldTypeKind` must agree with the `__metadata` type or the column is rejected:
+
+| Column | `__metadata.type` | `FieldTypeKind` |
+|---|---|---|
+| Single line text | `SP.FieldText` | 2 |
+| Multi-line text | `SP.FieldMultiLineText` | 3 |
+| Date and time | `SP.FieldDateTime` | 4 |
+| Choice | `SP.FieldChoice` | 6 |
+| Yes/No | `SP.Field` | 8 |
+| Number | `SP.FieldNumber` | 9 |
+| Currency | `SP.FieldCurrency` | 10 |
+| Person or group | `SP.FieldUser` | 20 |
+
+```js
 var LIST_FIELD_DEFS = [
   { '__metadata': { 'type': 'SP.FieldMultiLineText' }, 'FieldTypeKind': 3,
     'Title': 'Body', 'Required': false, 'NumberOfLines': 6, 'RichText': false },
@@ -395,6 +514,28 @@ function ensureField(digest, fieldDef) {
     });
   });
 }
+
+// Index columns and enable versioning AT PROVISIONING, while the list is empty.
+// Both are effectively irreversible: an index added after 5,000 items will not
+// take, and versioning enabled after writes begin has no history for them.
+// Run after field creation — a column cannot be indexed before it exists.
+function setFieldIndexed(digest, fieldTitle, fieldType) {
+  return spFetch(SITE_URL + '/_api/web/lists/getbytitle(\'' + spPath(LIST_NAME) +
+    '\')/fields/getbytitle(\'' + spPath(fieldTitle) + '\')', {
+    method: 'POST',
+    headers: writeHeaders(digest, { 'X-HTTP-Method': 'MERGE', 'IF-MATCH': '*' }),
+    body: JSON.stringify({ '__metadata': { 'type': fieldType || 'SP.Field' }, 'Indexed': true })
+  });
+}
+
+function enableVersioning(digest) {
+  return spFetch(SITE_URL + '/_api/web/lists/getbytitle(\'' + spPath(LIST_NAME) + '\')', {
+    method: 'POST',
+    headers: writeHeaders(digest, { 'X-HTTP-Method': 'MERGE', 'IF-MATCH': '*' }),
+    body: JSON.stringify({ '__metadata': { 'type': 'SP.List' },
+                           'EnableVersioning': true, 'MajorVersionLimit': 500 })
+  });
+}
 ```
 
 In `loadMessages` / the main data-load function, detect 404 and show the setup banner instead of a generic error:
@@ -410,7 +551,7 @@ In `loadMessages` / the main data-load function, detect 404 and show the setup b
 
 ---
 
-## Deployment Requirements
+## Deployment Requirements (fixed)
 
 Two independent conditions must both be met for an `.aspx` file to execute in the browser rather than download:
 
@@ -422,15 +563,18 @@ The person uploading the `.aspx` file must have this permission at upload time. 
 
 Practical split: a designated deployer (Design or Full Control) uploads the `.aspx` shell. The rest of the team can update `_data/` files freely with Contribute access.
 
+Both conditions apply **only when a shell actually changes**. The deploy script compares local shells against the remote inventory and skips the tenant-admin sign-in entirely for a `_data/`-only deploy — which, with runtime module loading, is nearly every deploy; `-ForceEnablement` runs the check anyway. Never re-upload an unchanged `.aspx` outside the window: doing so strips its executable flag and the app starts downloading instead of running.
+
 ---
 
-## What NOT to Build
+## What NOT to Build (fixed)
 
 - Do not add a backend server, database, or external API — everything stays in SharePoint/M365
-- Do not use npm, webpack, or a build step — all code must be uploadable as static files
-- Do not use React, Vue, or Angular — vanilla JS only (keeps shell small, no build toolchain)
+- Do not introduce a build step — npm, webpack, bundlers, transpilers. Every file must be uploadable as-is and readable as-is in the library. This is the fixed constraint; the next line is its consequence
+- Use vanilla JS. React, Vue, and Angular are out because they normally imply a build toolchain, not because a framework is forbidden by name — a no-build library loaded from `_data/` as a plain ES module does not break the rule. It is still not the default: say what it buys, confirm it needs no build and no CDN, and record the decision
 - Do not hardcode site URLs — always derive from `_spPageContextInfo.webAbsoluteUrl` or `window.location`
-- Do not store secrets in any file that will be uploaded to the document library
+- Do not store SECRETS — anything that grants access, such as API keys, connection strings, tokens, or flow trigger URLs — in any file uploaded to the document library. A browser reads everything the page reads
+- Confidential business data (salaries, deal terms, HR records) is a different thing and IS supported: store it in lists and protect it with permissions, not by hiding it in the UI. Never tell the user this platform cannot hold confidential data
 
 ---
 

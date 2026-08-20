@@ -11,7 +11,16 @@ It gives end-user / citizen developers the same "describe it and watch it appear
 | Automate your own work (crunch files, generate reports, query databases) | **[Packaged Python](patterns/PACKAGED_PYTHON_PATTERN.md)** — one single file colleagues run with a double-click; nothing to install; connects to data as *you* |
 | Run scheduled/background automation with no server | **[Worker Pool](patterns/WORKER_POOL_PATTERN.md)** — Packaged Python workers coordinated through SharePoint lists |
 
-**Reading the patterns.** Each pattern is a folder in [`patterns/`](patterns/) with three files: the guide **`*_PATTERN.md`** (start here — it renders on GitHub, and the table above links straight to it), a copy-paste **`*_PROMPT.md`** starter prompt that constrains the AI to the pattern's conventions, and **`*_PATTERN.aspx`** — the same guide published as a SharePoint page.
+Two **supporting patterns** apply across the others — read them alongside the pattern you're building in, not instead of it:
+
+| Concern | Supporting pattern |
+|---|---|
+| Who can see and change what, and proving who did what | **[SharePoint Permissions & Auditing](patterns/SHAREPOINT_PERMISSIONS_PATTERN.md)** — site/list/folder/file permissions *as* the app's authorization layer, and an audit trail you don't have to write |
+| Designing data that will grow, and what happens when it gets old | **[Storage Shape & Lifecycle](patterns/SHAREPOINT_STORAGE_LIFECYCLE_PATTERN.md)** — how many objects the storage layer creates, which mechanism can carry them, and archiving |
+
+**Reading the patterns.** Each pattern in [`patterns/`](patterns/) has three files: the guide **`*_PATTERN.md`** (start here — it renders on GitHub, and the tables above link straight to it), a copy-paste **`*_PROMPT.md`** starter prompt that constrains the AI to the pattern's conventions, and **`*_PATTERN.aspx`** — the same guide published as a SharePoint page.
+
+**Fixed vs Default.** Every guide labels its rules: **Fixed** means deviating breaks the platform, its security model, or its audit trail; **Default** means it's the right answer absent a specific reason — a judgement call you're expected to make, and to record when you depart from it.
 
 **Why `.aspx`?** The kit is built to be hosted *inside SharePoint* — it dogfoods its own SharePoint App Pattern — so the pattern pages and sample apps are `.aspx` that run as live pages in a document library. To read one outside SharePoint, open the matching `*_PATTERN.md`, or rename/serve the `.aspx` as `.html` (the markup is plain HTML/JavaScript) — for example with the local preview server below.
 
