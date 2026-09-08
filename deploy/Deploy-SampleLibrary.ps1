@@ -3,9 +3,22 @@
     Deploys the kit's published content to a SharePoint document library.
 
 .DESCRIPTION
-    Reusable deployment script for the M365 Citizen Dev Kit. It syncs the
-    repo's published folders (patterns/ and samples/) into a SharePoint
-    document library, preserving folder structure:
+    Reusable deployment script for the M365 Citizen Dev Kit.
+
+    THIS IS THE VARIANT FOR ORGANIZATIONS WITHOUT THE ENABLEMENT SERVICE. It
+    opens the target site's custom-script window by signing you in to the
+    SharePoint admin center and flipping the setting directly, which requires
+    SharePoint tenant-admin rights.
+
+    If your organization runs the self-service enablement Function App (see
+    docs/script-enablement-self-service.md), use the sibling script
+    Deploy-SampleLibrary.SelfService.ps1 instead. It performs the identical
+    deploy, but queues the window request to that service - which flips the
+    setting under its own managed identity after re-checking your grant - so it
+    needs no admin rights from you at all. Nothing else differs between them.
+
+    It syncs the repo's published folders (patterns/ and samples/) into a
+    SharePoint document library, preserving folder structure:
 
     1. Enables custom script uploads on the target site when needed
        (DenyAddAndCustomizePages = $false via the SPO admin module), reporting

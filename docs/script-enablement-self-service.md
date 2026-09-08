@@ -24,12 +24,13 @@ their own grant for the same site and enable it independently.
 
 - **The page** — open the enablement page, click **Enable** next to the site,
   and it reports the window's expiry. Measured end to end at 12 seconds.
-- **A deploy script** — the platform's own script does this by default, and
-  `deploy/examples/Enable-CustomScriptWindow.ps1` is a paste-in helper for an
-  app's own script.
+- **A deploy script** — `deploy/Deploy-SampleLibrary.SelfService.ps1` is the
+  kit's own deploy wired to this service, and
+  `deploy/examples/Enable-CustomScriptWindow.ps1` is the same request as a
+  paste-in helper for an app's own script.
 
 ```powershell
-.\Deploy-SampleLibrary.ps1
+.\Deploy-SampleLibrary.SelfService.ps1
 ```
 
 Both clients queue the same request and are authorized identically. Neither needs
@@ -64,6 +65,34 @@ Three lists carry it: **Grants** (the admin-curated `(Owner, SiteUrl)` mapping),
 **Requests** (the queue), and **Registrations** (self-service asks awaiting
 approval). A safety-net timer sweeps the queue every 10 minutes, so a lost wake
 ping delays a request rather than dropping it.
+
+## The Function App itself
+
+The privileged half is one **PowerShell Azure Function on the Flex Consumption
+plan** (PowerShell 7.4), with a **system-assigned managed identity**. Flex scales
+to zero, so a service that runs a handful of times a day costs almost nothing
+idle — and the cold start it pays in exchange is acceptable precisely because
+enabling a site is infrequent and interactive.
+
+| Piece | What it is, and why |
+|---|---|
+| HTTP trigger, `authLevel: function` | The wake ping. Called by a browser from the enablement page and by a deploy script. The key it requires is anti-DoS only — see the security model below |
+| System-assigned managed identity | The only holder of privilege. Gets SharePoint `Sites.FullControl.All` (tenant-wide, app-only) so it can flip `DenyAddAndCustomizePages`, plus `Storage Blob Data Owner` on the app's storage account, because Flex pulls its own deployment package from a blob container using that identity |
+| Bundled `PnP.PowerShell` under `Modules/` | Flex Consumption has **no** PowerShell managed dependencies, so `host.json` keeps `managedDependency` off and the module ships inside the deployment package instead of being resolved at runtime |
+| CORS allowing the SharePoint origin | The wake ping from the enablement page is a browser `fetch`, so the origin has to be allowed explicitly |
+| Application Insights, sampling disabled | Every privileged action is logged, and sampling is off so no audit line is dropped |
+| `functionTimeout: 00:10:00` | One invocation drains the whole queue; ten minutes is far more headroom than a sweep needs |
+| Safety-net timer | Sweeps the queue every ~10 minutes, so a wake ping that never lands delays a request instead of losing it |
+
+There is no database and no app-owned state: the three SharePoint lists *are* the
+state, which is what keeps the function itself stateless, disposable, and
+re-deployable without migration.
+
+**The order the grant is armed in matters.** Provisioning stands up only the
+harmless infrastructure — app, identity, App Insights, storage role, CORS. The
+tenant-wide `Sites.FullControl.All` grant is armed separately, once the real
+function logic is ready to receive it, to keep the window in which a
+half-finished function holds tenant-wide rights as close to zero as possible.
 
 ## The security model, in three facts
 
