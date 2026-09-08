@@ -55,7 +55,7 @@ $Root = (Resolve-Path $Root).Path
 $AllowedTenantHosts   = @('contoso', 'contoso-admin', 'tenant', 'yourtenant', 'your-tenant')
 $AllowedEmailDomains  = @('contoso.com', 'company.com', 'example.com', 'example.org')
 $AllowedDbHostPattern = '(?i)^(?:[{<%$]|\(local\)$|localhost$|\.[\\/]|[a-z0-9.-]*\.contoso\.com$)'
-$NeverTrackPattern    = '(?i)(^|/)(\.DS_Store|Thumbs\.db)$|^\.private/|^\.claude/settings\.local\.json$'
+$NeverTrackPattern    = '(?i)(^|/)(\.DS_Store|Thumbs\.db)$|^\.private/|^\.obsidian/|^\.claude/settings\.local\.json$'
 
 $findings = [System.Collections.Generic.List[object]]::new()
 function Add-Finding($Check, $File, $Line, $Text) {

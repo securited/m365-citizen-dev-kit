@@ -14,7 +14,7 @@ __pycache__/
 node_modules/
 
 # Local editor/AI state
-.obsidian/workspace.json
+.obsidian/
 .claude/settings.local.json
 
 # Maintainer-private notes (e.g. the full de-branding runbook with the literal

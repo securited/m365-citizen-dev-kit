@@ -63,8 +63,9 @@ pwsh -NoProfile -File deploy/Test-Anonymization.ps1
 It scans every git-tracked file for organization markers — the brand name, the
 tenant host and admin host, the Entra client-id, internal SQL hostnames,
 internal database/schema/view names, and owner emails — plus repo hygiene: no
-OS noise (`.DS_Store`, `Thumbs.db`), no local settings
-(`.claude/settings.local.json`), and no `.private/` content tracked.
+OS noise (`.DS_Store`, `Thumbs.db`), no local settings or editor state
+(`.claude/settings.local.json`, `.obsidian/`), and no `.private/` content
+tracked.
 
 The scan has two halves:
 
