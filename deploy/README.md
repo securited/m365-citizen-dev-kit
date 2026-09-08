@@ -36,6 +36,21 @@ Pick the one that matches your organization and use it; there is no flag to
 learn. If you run the service, the self-service script is strictly better —
 nobody needs a standing tenant-admin role to deploy a page.
 
+**Either way, the window step usually doesn't run at all.** A shell is designed
+never to change — feature modules load from `manifest.json` instead — so most
+deploys touch only `_data/` files, which need Contribute and no window. Both
+scripts compare the local `.aspx` files against the remote inventory first, and
+if none needs uploading they skip the whole step: no admin sign-in for one, no
+queued request and no waiting for the other. Re-uploading an unchanged shell is
+risk without benefit.
+
+| Situation | What happens |
+|---|---|
+| A shell changed | Window opens, then upload |
+| Only `_data/` changed | Step skipped entirely |
+| Only `_data/` changed, but `-ForceEnablement` | Window opens anyway (re-registering shells) |
+| A shell changed, but `-SkipEnablement` | Step skipped, with a warning that the upload may not execute |
+
 ## The enablement service, and how the script leverages it
 
 The service exists so that opening a window stops being a help-desk ticket. It is

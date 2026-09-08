@@ -50,6 +50,12 @@
     permission are separate requirements, and an open window does not
     compensate for a missing one.
 
+    THE REQUEST IS ONLY MADE WHEN IT IS NEEDED. An .aspx shell is designed never
+    to change (feature modules load from manifest.json instead), so most deploys
+    touch only _data/ files - which need Contribute and no window at all. This
+    script decides from the remote inventory: if no shell needs uploading it
+    queues nothing and waits for nothing. Override with -ForceEnablement.
+
     Everything after enablement - pre-flight, cleanup, upload, status - is
     identical to Deploy-SampleLibrary.ps1: it syncs the repo's published folders
     (patterns/ and samples/) into a SharePoint document library, preserving
@@ -96,8 +102,13 @@
     https://pnp.github.io/powershell/articles/registerapplication.html
 
 .PARAMETER SkipEnablement
-    Skip the enablement request entirely (e.g. when the window is already open,
-    or when only updating _data files, which never require it).
+    Skip the enablement request entirely, even when a shell changed (e.g. when
+    you know the window is already open).
+
+.PARAMETER ForceEnablement
+    Queue a request even though no .aspx changed. Only needed when the shells
+    have to be re-registered - the deploy skips the request on its own for a
+    _data/-only change.
 
 .PARAMETER SkipCleanup
     Upload without removing remote files that are absent locally.
@@ -123,6 +134,7 @@ param(
     [int]$EnablementTimeoutSeconds = 300,
     [string]$PnPClientId    = $env:PNP_CLIENT_ID,
     [switch]$SkipEnablement,
+    [switch]$ForceEnablement,
     [switch]$SkipCleanup
 )
 
@@ -484,23 +496,54 @@ Write-Success ("{0} remote file(s) indexed." -f $remoteFileIndex.Count)
 $enablementSite = if ([string]::IsNullOrWhiteSpace($EnablementSiteUrl)) { $SiteUrl } else { $EnablementSiteUrl }
 
 #region --- Open the custom-script window (self-service enablement service) -----
-# The privileged flip happens server-side, under the enablement service's own
-# managed identity, and only after it re-checks that the request's Author holds
-# a grant for this exact site. Nothing in this script needs admin rights.
+# Uploading an .aspx outside the custom-script window leaves it without its
+# executable flag, so it downloads instead of running. But re-uploading an
+# UNCHANGED shell is pure risk with no benefit - and the shell is designed never
+# to change (feature modules load from manifest.json instead). So decide from the
+# inventory: if no .aspx needs uploading, this is a _data/-only deploy, which
+# needs Contribute and nothing more - skip the window entirely.
+
+$aspxNeedingUpload = @()
+foreach ($relative in ($localFiles | Where-Object { $_ -like '*.aspx' })) {
+    $remoteFile = $null
+    if ($remoteFileIndex.ContainsKey($relative)) { $remoteFile = $remoteFileIndex[$relative] }
+    if (Test-LocalFileNeedsUpload -LocalFull (Join-Path $SourcePath ($relative.Replace('/', '\'))) -RemoteFile $remoteFile) {
+        $aspxNeedingUpload += $relative
+    }
+}
 
 if ($SkipEnablement) {
-    Write-Step 'Skipping custom-script enablement request (-SkipEnablement)'
-    Write-Notice 'If the window is not already open, any .aspx uploaded now will download instead of running.'
+    Write-Step 'Skipping custom-script enablement (-SkipEnablement)'
+    if ($aspxNeedingUpload.Count -gt 0) {
+        Write-Notice ("{0} shell(s) need uploading but the enablement check was skipped." -f $aspxNeedingUpload.Count)
+        Write-Notice 'If the window is not already open they will download instead of running.'
+    }
 }
-elseif ($PSCmdlet.ShouldProcess($SiteUrl, 'Request a custom-script window (self-service enablement service)')) {
-    Write-Step 'Requesting a custom-script window'
-    Request-SelfServiceEnablement -TargetSiteUrl $SiteUrl `
-                                  -QueueSiteUrl $enablementSite `
-                                  -TimeoutSeconds $EnablementTimeoutSeconds
-    Write-Notice 'Upload all .aspx files within this window. Files keep their executable status after it closes.'
+elseif ($aspxNeedingUpload.Count -eq 0 -and -not $ForceEnablement) {
+    Write-Step 'Custom-script enablement not required'
+    Write-Success 'No .aspx shell changed - this is a _data/-only deploy (Contribute is enough).'
+    Write-Skip    'Override with -ForceEnablement if the shells need re-registering.'
 }
 else {
-    Write-Skip 'WhatIf: would queue a self-service enablement request and wait for the window.'
+    if ($aspxNeedingUpload.Count -gt 0) {
+        Write-Notice ("{0} shell(s) changed and must upload inside the window:" -f $aspxNeedingUpload.Count)
+        $aspxNeedingUpload | ForEach-Object { Write-Notice "  - $_" }
+        Write-Notice 'You also need Design or Full Control on the library, or the file will not execute.'
+    }
+
+    # The privileged flip happens server-side, under the enablement service's own
+    # managed identity, and only after it re-checks that the request's Author
+    # holds a grant for this exact site. No admin rights are used here.
+    if ($PSCmdlet.ShouldProcess($SiteUrl, 'Request a custom-script window (self-service enablement service)')) {
+        Write-Step 'Requesting a custom-script window'
+        Request-SelfServiceEnablement -TargetSiteUrl $SiteUrl `
+                                      -QueueSiteUrl $enablementSite `
+                                      -TimeoutSeconds $EnablementTimeoutSeconds
+        Write-Notice 'Upload all .aspx files within this window. Files keep their executable status after it closes.'
+    }
+    else {
+        Write-Skip 'WhatIf: would queue a self-service enablement request and wait for the window.'
+    }
 }
 
 #endregion

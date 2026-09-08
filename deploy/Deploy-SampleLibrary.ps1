@@ -20,10 +20,13 @@
     It syncs the repo's published folders (patterns/ and samples/) into a
     SharePoint document library, preserving folder structure:
 
-    1. Enables custom script uploads on the target site when needed
-       (DenyAddAndCustomizePages = $false via the SPO admin module), reporting
-       the 24-hour expiration window.
-    2. Connects to the site with PnP.PowerShell.
+    1. Connects to the site with PnP.PowerShell and reads the remote inventory.
+    2. Enables custom script uploads on the target site, but ONLY when an .aspx
+       shell actually needs uploading (DenyAddAndCustomizePages = $false via the
+       SPO admin module), reporting the 24-hour expiration window. A _data/-only
+       deploy needs Contribute and nothing more, so it skips the admin sign-in
+       altogether - re-uploading an unchanged shell is risk without benefit.
+       Override with -ForceEnablement.
     3. Cleans up: removes files and folders in the library that are not part
        of the current local source set (stale files from earlier deployments).
     4. Deploys: uploads files that are new or changed (size or last-write time
@@ -67,8 +70,13 @@
     https://pnp.github.io/powershell/articles/registerapplication.html
 
 .PARAMETER SkipEnablement
-    Skip the custom-script enablement check (e.g. when the window is already
-    open, or when only updating _data files, which never require it).
+    Skip the custom-script enablement check entirely, even when a shell changed
+    (e.g. when you know the window is already open).
+
+.PARAMETER ForceEnablement
+    Open the window even though no .aspx changed. Only needed when the shells
+    have to be re-registered - the deploy skips the window on its own for a
+    _data/-only change.
 
 .PARAMETER SkipCleanup
     Upload without removing remote files that are absent locally.
@@ -93,6 +101,7 @@ param(
     [string]$AdminCenterUrl = 'https://contoso-admin.sharepoint.com',
     [string]$PnPClientId    = $env:PNP_CLIENT_ID,
     [switch]$SkipEnablement,
+    [switch]$ForceEnablement,
     [switch]$SkipCleanup
 )
 
@@ -294,43 +303,6 @@ $localFolders = @($ContentDirs) + $localFolders | Select-Object -Unique
 Write-Success ("{0} files in {1} folders to deploy." -f $localFiles.Count, $localFolders.Count)
 
 #endregion
-
-#region --- Enable custom script ------------------------------------------------
-
-if ($SkipEnablement) {
-    Write-Step 'Skipping custom-script enablement check (-SkipEnablement)'
-}
-else {
-    Write-Step 'Checking custom-script enablement'
-
-    Install-RequiredModule -Name $SpoModuleName
-
-    $importParams = @{}
-    if ($PSVersionTable.PSEdition -eq 'Core') {
-        $importParams['UseWindowsPowerShell'] = $true
-    }
-    Import-Module $SpoModuleName @importParams -ErrorAction Stop
-
-    Write-Notice "Connecting to $AdminCenterUrl — sign in when prompted."
-    Connect-SPOService -Url $AdminCenterUrl -ErrorAction Stop
-
-    $site = Get-SPOSite -Identity $SiteUrl -ErrorAction Stop
-
-    if (-not $site.DenyAddAndCustomizePages) {
-        Write-Success 'Custom script uploads are already enabled on this site.'
-    }
-    elseif ($PSCmdlet.ShouldProcess($SiteUrl, 'Enable custom script uploads (DenyAddAndCustomizePages = $false)')) {
-        Set-SPOSite -Identity $SiteUrl -DenyAddAndCustomizePages $false -ErrorAction Stop
-        Write-Success 'Custom script uploads have been enabled.'
-        Write-Host ''
-        Write-Host '  Expected expiration (24 hours from enablement):' -ForegroundColor Cyan
-        Write-Host "    $(Get-LocalExpirationTimestamp -From (Get-Date) -Hours $EnablementHours)"
-        Write-Notice 'Upload all .aspx files within this window. Files keep their executable status after it closes.'
-    }
-}
-
-#endregion
-
 #region --- Connect to the site -------------------------------------------------
 
 Write-Step "Connecting to $SiteUrl (PnP.PowerShell)"
@@ -360,6 +332,73 @@ foreach ($file in $remoteInventory) {
 }
 
 Write-Success ("{0} remote file(s) indexed." -f $remoteFileIndex.Count)
+
+#endregion
+
+#region --- Enable custom script ------------------------------------------------
+# Uploading an .aspx outside the custom-script window leaves it without its
+# executable flag, so it downloads instead of running. But re-uploading an
+# UNCHANGED shell is pure risk with no benefit - and the shell is designed never
+# to change (feature modules load from manifest.json instead). So decide from the
+# inventory: if no .aspx needs uploading, this is a _data/-only deploy, which
+# needs Contribute and nothing more - skip the window entirely.
+
+$aspxNeedingUpload = @()
+foreach ($relative in ($localFiles | Where-Object { $_ -like '*.aspx' })) {
+    $remoteFile = $null
+    if ($remoteFileIndex.ContainsKey($relative)) { $remoteFile = $remoteFileIndex[$relative] }
+    if (Test-LocalFileNeedsUpload -LocalFull (Join-Path $SourcePath ($relative.Replace('/', '\'))) -RemoteFile $remoteFile) {
+        $aspxNeedingUpload += $relative
+    }
+}
+
+if ($SkipEnablement) {
+    Write-Step 'Skipping custom-script enablement (-SkipEnablement)'
+    if ($aspxNeedingUpload.Count -gt 0) {
+        Write-Notice ("{0} shell(s) need uploading but the enablement check was skipped." -f $aspxNeedingUpload.Count)
+        Write-Notice 'If the window is not already open they will download instead of running.'
+    }
+}
+elseif ($aspxNeedingUpload.Count -eq 0 -and -not $ForceEnablement) {
+    Write-Step 'Custom-script enablement not required'
+    Write-Success 'No .aspx shell changed - this is a _data/-only deploy (Contribute is enough).'
+    Write-Skip    'Override with -ForceEnablement if the shells need re-registering.'
+}
+else {
+    if ($aspxNeedingUpload.Count -gt 0) {
+        Write-Notice ("{0} shell(s) changed and must upload inside the window:" -f $aspxNeedingUpload.Count)
+        $aspxNeedingUpload | ForEach-Object { Write-Notice "  - $_" }
+        Write-Notice 'You also need Design or Full Control on the library, or the file will not execute.'
+    }
+
+    Write-Step 'Checking custom-script enablement'
+
+    Install-RequiredModule -Name $SpoModuleName
+
+    $importParams = @{}
+    if ($PSVersionTable.PSEdition -eq 'Core') {
+        $importParams['UseWindowsPowerShell'] = $true
+    }
+    Import-Module $SpoModuleName @importParams -ErrorAction Stop
+
+    Write-Notice "Connecting to $AdminCenterUrl - sign in when prompted (tenant admin)."
+    Write-Skip    'No tenant-admin rights? Use Deploy-SampleLibrary.SelfService.ps1 instead.'
+    Connect-SPOService -Url $AdminCenterUrl -ErrorAction Stop
+
+    $site = Get-SPOSite -Identity $SiteUrl -ErrorAction Stop
+
+    if (-not $site.DenyAddAndCustomizePages) {
+        Write-Success 'Custom script uploads are already enabled on this site.'
+    }
+    elseif ($PSCmdlet.ShouldProcess($SiteUrl, 'Enable custom script uploads (DenyAddAndCustomizePages = $false)')) {
+        Set-SPOSite -Identity $SiteUrl -DenyAddAndCustomizePages $false -ErrorAction Stop
+        Write-Success 'Custom script uploads have been enabled.'
+        Write-Host ''
+        Write-Host '  Expected expiration (24 hours from enablement):' -ForegroundColor Cyan
+        Write-Host "    $(Get-LocalExpirationTimestamp -From (Get-Date) -Hours $EnablementHours)"
+        Write-Notice 'Upload all .aspx files within this window. Files keep their executable status after it closes.'
+    }
+}
 
 #endregion
 
