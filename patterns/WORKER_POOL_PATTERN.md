@@ -143,7 +143,7 @@ Every implementation must demonstrate its core guarantee on demand: fire **N sim
 | Piece | Where |
 |---|---|
 | Worker app (Pattern C, with race proof) | `euda-worker/` in the `Sample Sites` library |
-| Status page | [euda-worker-status.aspx](euda-worker-status.aspx) |
+| Status page | [euda-worker-status.aspx](../samples/euda-worker-status.aspx) |
 | Coordination lists | `EUDA Schedules`, `EUDA JobRuns` (auto-provisioned on the sample site) |
 | Demo job | `weather-to-json` — fetches a public API and overwrites `euda-worker_data/latest.json` |
 
