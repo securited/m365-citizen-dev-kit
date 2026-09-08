@@ -39,6 +39,47 @@ pwsh -NoProfile -File .claude/serve.ps1 -Port 7432
 uv run samples/csv-merge-report/app.py
 ```
 
+## Deploying to SharePoint, and the wall you hit first
+
+Publishing an `.aspx` page runs into one obstacle that has nothing to do with your
+app: SharePoint requires the target site's **custom-script window** to be open
+(`DenyAddAndCustomizePages = $false`, a ~24-hour setting that auto-resets). Upload
+outside the window and the file lands but loses its executable flag — it downloads
+instead of running, which looks like a broken app rather than a permissions problem.
+
+Flipping that setting is a **tenant-admin operation**, which leaves most
+organizations choosing between two bad answers: route every deploy through a help
+desk ticket — hours, or days over a weekend, for a change that takes seconds — or
+hand standing SharePoint admin rights to people whose job is building forms.
+
+The kit documents a third answer, as **optional** infrastructure: a small
+**PowerShell Azure Function** on the Flex Consumption plan, holding a
+system-assigned managed identity that owns the privilege. Nobody else gets it. A
+vetted site owner queues a request — from a SharePoint page, or straight from their
+deploy script — and the function re-checks, server-side, that this person holds a
+grant for that exact site before flipping anything. Identity comes from the `Author`
+stamp SharePoint puts on the request, which no client can set or spoof, so a deploy
+script is just a second front door to the same queue and carries no extra trust.
+
+The result: seconds instead of days, and **no admin rights are delegated to
+anyone**. The privilege stays with the service and is exercised one checked request
+at a time, with every action logged. Flex scales to zero, so infrequent use costs
+almost nothing to keep running.
+
+You do not need any of it to use this kit. There are two deploy scripts — pick the
+one that matches your organization:
+
+| Your setup | Script |
+|---|---|
+| No enablement service | [`deploy/Deploy-SampleLibrary.ps1`](deploy/Deploy-SampleLibrary.ps1) — you flip the setting yourself; needs SharePoint tenant admin |
+| Running the service | [`deploy/Deploy-SampleLibrary.SelfService.ps1`](deploy/Deploy-SampleLibrary.SelfService.ps1) — queues a request; needs no admin rights, only a grant |
+
+Everything else about the two is identical, and both skip the step entirely when no
+`.aspx` actually changed. The architecture and security model are in
+[docs/script-enablement-self-service.md](docs/script-enablement-self-service.md);
+which script to use and how the client contract works are in
+[deploy/README.md](deploy/README.md).
+
 ## Documentation
 
 - Project docs and plans: [`docs/`](docs/)
