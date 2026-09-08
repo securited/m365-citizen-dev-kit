@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Packaged Python Pattern | End-User Developed Applications</title>
+<title>Cross-Application Communication | End-User Developed Applications</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -380,15 +380,15 @@ body {
       <span>&#9671;</span>
       <span>End-User Developed Applications</span>
     </div>
-    <span class="guide-subtitle">/ Packaged Python Pattern</span>
+    <span class="guide-subtitle">/ Cross-Application Communication</span>
   </header>
   <div class="guide-body">
     <div class="prompt-banner">
       <div class="prompt-banner-text">
-        <div class="prompt-banner-title">Building a new Python app?</div>
-        <div class="prompt-banner-desc">Start with the Claude project prompt &mdash; copy it as your first message to keep development inside this pattern's conventions.</div>
+        <div class="prompt-banner-title">Connecting two apps?</div>
+        <div class="prompt-banner-desc">Start with the Claude project prompt &mdash; attach it <strong>together with the prompt for the app's own pattern</strong> as your first message; this pattern shapes the contract that prompt produces.</div>
       </div>
-      <a class="prompt-banner-btn" href="PACKAGED_PYTHON_PROMPT.md">Open the Project Prompt</a>
+      <a class="prompt-banner-btn" href="CROSS_APP_COMMUNICATION_PROMPT.md">Open the Project Prompt</a>
     </div>
     <div id="samples-section" class="samples-section" style="display:none">
       <div class="section-label">Sample Applications</div>
@@ -417,9 +417,9 @@ function deriveSiteUrl() {
 
 var SITE_URL   = deriveSiteUrl();
 var PAGE_DIR   = decodeURIComponent(window.location.pathname).replace(/\/[^\/]+$/, '');
-var MD_PATH    = PAGE_DIR + '/PACKAGED_PYTHON_PATTERN.md';
+var MD_PATH    = PAGE_DIR + '/CROSS_APP_COMMUNICATION_PATTERN.md';
 var DATA_FOLDER = PAGE_DIR + '/DEVELOPMENT_PATTERNS_data';
-var PATTERN_ID  = 'packaged-python';
+var PATTERN_ID  = 'cross-app-comms';
 
 function fetchAsset(filename) {
   var apiUrl = SITE_URL + '/_api/web/getfilebyserverrelativeurl(\'' +
@@ -546,10 +546,10 @@ function boot() {
   fetch(apiUrl, { credentials: 'same-origin', headers: { 'Accept': 'text/plain' } })
     .then(function (r) {
       if (r.ok) return r.text();
-      return fetch('./PACKAGED_PYTHON_PATTERN.md').then(function (r2) { return r2.text(); });
+      return fetch('./CROSS_APP_COMMUNICATION_PATTERN.md').then(function (r2) { return r2.text(); });
     })
     .catch(function () {
-      return fetch('./PACKAGED_PYTHON_PATTERN.md').then(function (r2) { return r2.text(); });
+      return fetch('./CROSS_APP_COMMUNICATION_PATTERN.md').then(function (r2) { return r2.text(); });
     })
     .then(function (md) {
       clearInterval(dotsTimer);

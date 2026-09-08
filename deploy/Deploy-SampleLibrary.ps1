@@ -37,6 +37,12 @@
     Top-level folders (relative to SourcePath) whose contents are published.
     Defaults to 'patterns' and 'samples'.
 
+.PARAMETER SeedOnlyFiles
+    Files an app overwrites at runtime, as paths relative to the repo root with
+    forward slashes. Each is uploaded when missing remotely, never overwritten,
+    and never removed as stale - the deployed copy is live data, the local copy
+    only a first-run seed.
+
 .PARAMETER AdminCenterUrl
     SharePoint Online admin center URL. Defaults to the Contoso admin center —
     change it to your tenant's admin center.
@@ -70,6 +76,7 @@ param(
     [string]$LibraryName    = 'Sample Sites',
     [string]$SourcePath     = (Split-Path $PSScriptRoot -Parent),
     [string[]]$ContentDirs  = @('patterns', 'samples'),
+    [string[]]$SeedOnlyFiles = @('samples/euda-worker_data/latest.json'),
     [string]$AdminCenterUrl = 'https://contoso-admin.sharepoint.com',
     [string]$PnPClientId    = $env:PNP_CLIENT_ID,
     [switch]$SkipEnablement,
@@ -90,10 +97,10 @@ $ExcludeNames    = @('.DS_Store', 'Thumbs.db')
 # the library if an earlier deploy uploaded them.
 $ExcludeDirs     = @('__pycache__', '.venv', '.streamlit', 'node_modules')
 
-# Files apps overwrite at runtime (relative paths, forward slashes). The local
-# copy is only a first-run seed: uploaded when missing remotely, never
-# overwritten by a deploy — otherwise every deploy would revert live data.
-$SeedOnlyFiles   = @('samples/euda-worker_data/latest.json')
+# -SeedOnlyFiles (parameter above) lists the files apps overwrite at runtime
+# (relative paths, forward slashes). The local copy is only a first-run seed:
+# uploaded when missing remotely, never overwritten by a deploy — otherwise
+# every deploy would revert live data.
 
 #region --- Helpers -------------------------------------------------------------
 

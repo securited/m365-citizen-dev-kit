@@ -11,11 +11,12 @@ This file is the **canonical AI context** for the repo. `CLAUDE.md` imports it v
 | Path | Purpose | Published? |
 |---|---|---|
 | `README.md`, `AGENTS.md`, `CLAUDE.md` | Front door + canonical AI context | n/a |
-| `patterns/` | One set per pattern: guide (`*_PATTERN.md`), starter prompt (`*_PROMPT.md`), published SharePoint page (`*_PATTERN.aspx`). Four core patterns (SharePoint App, Claude Artifacts, Packaged Python, Worker Pool) + two supporting (SharePoint Permissions & Auditing, Storage Shape & Lifecycle). Plus the hub `DEVELOPMENT_PATTERNS.aspx` and its `DEVELOPMENT_PATTERNS_data/` (`samples.json`, `versions.json`) | Yes — to a SharePoint library |
+| `patterns/` | One set per pattern: guide (`*_PATTERN.md`), starter prompt (`*_PROMPT.md`), published SharePoint page (`*_PATTERN.aspx`). Four core patterns (SharePoint App, Claude Artifacts, Packaged Python, Worker Pool) + three supporting (SharePoint Permissions & Auditing, Storage Shape & Lifecycle, Cross-Application Communication). Plus `PATTERN_INDEX.md`/`.aspx` — the routing guide an AI assistant should read first, and the only pattern file with no `*_PROMPT.md` — and the hub `DEVELOPMENT_PATTERNS.aspx` with its `DEVELOPMENT_PATTERNS_data/` (`samples.json`, `versions.json`) | Yes — to a SharePoint library |
 | `samples/` | Sample apps: SharePoint `.aspx` demos + `_data/` companions, and single-file Python apps (`app.py` + `launch.cmd` + `README.md`), incl. the `migrate-existing-app` example | Yes |
-| `deploy/` | `Deploy-SampleLibrary.ps1` syncs `patterns/` + `samples/` to a SharePoint document library; `Test-Anonymization.ps1` is the pre-push anonymization gate | No |
+| `deploy/` | `Deploy-SampleLibrary.ps1` syncs `patterns/` + `samples/` to a SharePoint document library; `Test-Anonymization.ps1` is the pre-push anonymization gate; `examples/` holds the copy-me-for-a-new-app deploy script and the standalone enablement-window opener | No |
+| `tools/` | `verify_app_registration.py` — checks an Entra app registration has what the patterns need | No |
 | `.claude/` | Local dev: `serve.ps1` static preview server, `launch.json` run configs | No |
-| `docs/` | Human docs, plans, and ADRs (`docs/decisions/`) | No |
+| `docs/` | Human docs, plans, and ADRs (`docs/decisions/`). `RELEASING.md` holds the dual-bump release procedure | No |
 
 Hard rules: this is a **public** repo — never commit a real tenant URL, owner email, Entra client-id, internal hostname, or business data. Use the Contoso placeholders defined in [docs/anonymization-plan.md](docs/anonymization-plan.md). Never add secrets to any file (see below).
 

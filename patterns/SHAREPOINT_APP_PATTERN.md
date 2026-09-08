@@ -1,6 +1,6 @@
 # Building Applications with the SharePoint App Pattern
 
-> **SharePoint App Pattern — v1.7** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **SharePoint App Pattern — v1.12** · updated 2026-09-03. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 > **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
 
@@ -14,7 +14,7 @@ A guide for designing and deploying custom web applications on SharePoint as a c
 
 This platform turns SharePoint into an application hosting environment using only files, lists, and Microsoft 365 services you already have. Every application follows the same pattern:
 
-**A boot-only `.aspx` shell** lives in a document library and serves as the entry point. It loads assets from a companion `_data/` subfolder at runtime, defines the handful of helpers those assets build on, and shows loading and error states — **no feature code and no application state**. Two reasons: SharePoint's content scanner scrutinizes `.aspx` files, so a small, inert shell reduces the surface area for false positives; and `.aspx` updates are ticket-gated while `_data/` files are not, so a shell holding only boot logic never has to change again.
+**A boot-only `.aspx` shell** lives in a document library and serves as the entry point. It loads assets from a companion `_data/` subfolder at runtime, defines the handful of helpers those assets build on, and shows loading and error states — **no feature code and no application state**. Two reasons: SharePoint's content scanner scrutinizes `.aspx` files, so a small, inert shell reduces the surface area for false positives; and updating an `.aspx` costs a custom-script window plus Design or Full Control while `_data/` files cost neither, so a shell holding only boot logic never has to change again.
 
 **SharePoint Lists are the database.** Each list is a table; columns are fields; items are rows. The SharePoint REST API provides full OData querying — filtering, sorting, pagination, and lookups — with no external database or API server. Lists hold millions of items and auto-provision on first use.
 
@@ -30,11 +30,13 @@ The result is a complete application stack deployed as a handful of files inside
 
 ### Enabling Deployments
 
-Before uploading `.aspx` files to a SharePoint site, custom scripts must be enabled on that site. **Open a help desk ticket and request that your SharePoint site be enabled for custom script deployments.** Once enabled, the site has a 24-hour deployment window to upload and register your application files. After it closes, the setting resets automatically.
+Before uploading `.aspx` files to a SharePoint site, custom scripts must be enabled on that site. **You open that window yourself, in seconds** — from the [self-service enablement page](https://contoso.sharepoint.com/sites/euda-sample/script-enablement/script-enablement.aspx) or from your deploy script. No help desk ticket, no admin rights. Once enabled, the site has a 24-hour window to upload and register your application files; after it closes, the setting resets automatically.
 
-Updating the shell (`.aspx`) later requires requesting enablement again. Files in the `_data/` folder — CSS, HTML, JSON — can be updated any time with no re-enablement, because they are plain document files, not executable scripts.
+Access is granted per site, once. Register your site on the enablement page and an EUDA admin approves it with one click; from then on you enable that site whenever you deploy. Several people can each hold a grant for the same site.
 
-> The self-service process for enabling custom scripts is planned for a future update and will remove the need to file a ticket.
+Updating the shell (`.aspx`) later means opening the window again — seconds, not a ticket. Files in the `_data/` folder — CSS, HTML, JSON — can be updated any time with no enablement at all, because they are plain document files, not executable scripts.
+
+> Enabling a site is a tenant-admin operation performed on your behalf by a service that re-checks your grant server-side. You never hold admin rights, and asking for a site you have no grant for is simply denied.
 
 ---
 
@@ -81,7 +83,7 @@ Identity is resolved in one of two ways depending on where your file lives:
 
 **Site Pages** (`.aspx` files in the Site Pages library with a master page) receive a global object called `_spPageContextInfo` automatically:
 ```
-_spPageContextInfo.userDisplayName   — "Sample User"
+_spPageContextInfo.userDisplayName   — "Ted Kieffer"
 _spPageContextInfo.userLoginName     — "sample.user@company.com"
 _spPageContextInfo.userId            — SharePoint user ID (integer)
 _spPageContextInfo.webAbsoluteUrl    — current site URL
@@ -170,7 +172,7 @@ The moment an app writes a JSON file back to `_data/`, that file stops being dep
 Register every such file as **seed-only** in the deploy script's `-SeedOnlyFiles` list. Seed-only files are uploaded when missing remotely, never overwritten, and never removed as stale:
 
 ```powershell
-.\Deploy-SampleLibrary.ps1 -SeedOnlyFiles 'euda-worker_data/latest.json','my-app_data/site-config.json'
+.\Deploy-SampleLibrary.ps1 -SeedOnlyFiles 'samples/euda-worker_data/latest.json','samples/my-app_data/site-config.json'
 ```
 
 The rule is mechanical: **if the app can write it, the deploy must not.** Any file passed to `files/add(overwrite=true)` at runtime belongs on that list the day it is introduced — not the day someone discovers their settings reset.
@@ -197,13 +199,32 @@ For any logic that shouldn't run in the browser — sending emails, processing d
 
 The common pattern is the **HTTP-triggered flow**: your application POSTs a JSON payload to a Power Automate HTTP trigger URL, and the flow handles the rest. From the application's side it's an API call; the flow runs all server-side logic with no code deployment.
 
+When the caller is **another EUDA application** rather than this app's own UI, a flow is one of four integration shapes and usually not the first to reach for: a SharePoint list carries the request with an audit trail and no bearer-secret URL to protect. See [Cross-Application Communication](CROSS_APP_COMMUNICATION_PATTERN.aspx).
+
 Power Automate can:
 - Send emails and Teams messages
-- Call external REST APIs
+- Call external REST APIs — **but see the licensing caveat below**
 - Read and write SharePoint lists
 - Run approval workflows with notifications and responses
 - Execute on a schedule
 - Respond synchronously with a result
+
+#### Getting External API Data Into SharePoint
+
+Consuming a third-party API is a normal thing to build here. The only fixed rule is **where the call is made from**: never from the browser when it needs a credential, because a browser reads everything the page reads.
+
+Beyond that, the route is a Default, and one licensing fact usually decides it. **Power Automate's generic HTTP action is a premium connector** ([Microsoft, Power Automate licensing](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/types)). Without a premium or per-flow licence, a flow cannot call an arbitrary external API at all — which makes "just use a flow" advice that quietly fails for most citizen developers. Check the licence before designing around it.
+
+| The API… | Route |
+|---|---|
+| Is public, needs no auth, and sends CORS headers for our origin | Direct `fetch()` from the browser. Verify CORS from the SharePoint origin first — most APIs don't allow it |
+| Needs a key or token, and premium licensing **is** available | Power Automate flow holding the credential; the app calls the flow |
+| Needs a key or token, and premium licensing is **not** available | **A companion [Packaged Python](PACKAGED_PYTHON_PATTERN.aspx) app** that calls the API and writes results to a SharePoint list this app reads normally |
+| Must refresh on a guaranteed schedule regardless of who is online | Neither citizen route — escalate to IT-hosted |
+
+**The companion-app route is the workhorse, and it is not a fallback.** It needs no premium licence, gives you real Python for parsing and transformation, and runs as a named person, so every row it writes carries a real identity and the audit trail stays intact. Two shapes: **Pattern B plus Task Scheduler** when one owner's machine is reliably on, or the [Worker Pool](WORKER_POOL_PATTERN.aspx) pattern when the team should keep it running rather than one person.
+
+The seam is the list. The browser app never knows the API exists — it reads a SharePoint list like any other data, which also means the ingestion route can change later without touching the app.
 
 ---
 
@@ -230,9 +251,9 @@ Everything else is a bonus, and it all points the same way:
 - **Join them to a hub site** for shared navigation, search scope, and branding. A hub links sites without merging their permissions: one place to find every app, no shared administrator list.
 - **Keep a site registry** — a list on the hub naming each app, its site URL, its owners, its purpose, and its last-reviewed date. One site per app trades crowding for sprawl, and the registry is what makes sprawl answerable. It is itself a small app on this platform.
 
-**The honest cost:** cross-app rollups get harder. Within one site you can query lists directly; across sites you are into search, which is security-trimmed but index-lagged by minutes to hours. If two "apps" genuinely need to query each other's data row by row, they are one app in one site — decide that before splitting them.
+**The honest cost:** cross-app rollups get harder. Within one site you can query lists directly; across sites you are into search, which is security-trimmed but index-lagged by minutes to hours. If two "apps" genuinely need to query each other's data row by row, they are one app in one site — decide that before splitting them. When they are genuinely two apps and one still needs what the other holds, the answer is a published contract, not a direct read of the other app's lists.
 
-Access control *within* the app is a separate question, and a deep one: see [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx). How many objects the app creates and what happens to old data are covered in [Storage Shape & Lifecycle](SHAREPOINT_STORAGE_LIFECYCLE_PATTERN.aspx).
+Access control *within* the app is a separate question, and a deep one: see [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx). How many objects the app creates and what happens to old data are covered in [Storage Shape & Lifecycle](SHAREPOINT_STORAGE_LIFECYCLE_PATTERN.aspx). What this app publishes to other apps, and what it may read from them, is [Cross-Application Communication](CROSS_APP_COMMUNICATION_PATTERN.aspx).
 
 ---
 
@@ -390,7 +411,7 @@ function loadModules() {
 loadModules().then(initApp);
 ```
 
-Adding a feature is now: upload the module, add one line to `manifest.json`. Both are `_data/` files, both Contribute-level, no ticket, live on the next page load.
+Adding a feature is now: upload the module, add one line to `manifest.json`. Both are `_data/` files, both Contribute-level, no window, live on the next page load.
 
 **Caveats:**
 
@@ -399,7 +420,7 @@ Adding a feature is now: upload the module, add one line to `manifest.json`. Bot
 - **Validate the manifest at deploy time.** Both failure modes here — a manifest naming a module that was never uploaded, and a `FALLBACK_MODULES` list that has drifted from it — deploy perfectly cleanly and only fail in the browser, the second one only on the day the manifest itself fails to load. Since nothing at runtime can catch them, the deploy script does: it parses every `manifest.json`, checks each named module exists on disk, and compares the manifest against `FALLBACK_MODULES` in the sibling `app.js`, aborting before it uploads a broken app.
 - **Load order is the manifest's order**, preserved by `async = false`. Dynamically created scripts are async by default and would otherwise execute in completion order.
 
-**New shared helpers go in `platform.js`, not the shell.** The shell is the natural place to define the app's helper surface and exactly the wrong place to grow it — every addition is ticket-gated. Keep a companion `platform.js` in `_data/` for helpers the modules share, and let the shell define only what boot itself needs.
+**New shared helpers go in `platform.js`, not the shell.** The shell is the natural place to define the app's helper surface and exactly the wrong place to grow it — every addition costs a shell redeploy, and a shell redeploy needs Design or Full Control on top of the window. Keep a companion `platform.js` in `_data/` for helpers the modules share, and let the shell define only what boot itself needs.
 
 ---
 
@@ -601,31 +622,39 @@ function ensureUser(loginName, digest) {
 
 ### Requirements
 
-1. **Custom scripts must be enabled on the target site before uploading `.aspx` files.** Open a help desk ticket requesting custom script deployments for your SharePoint site. The enablement window is 24 hours — upload all shell files during it. Files uploaded and registered while the window is active retain their allowed status after the reset.
+1. **Custom scripts must be enabled on the target site before uploading `.aspx` files.** Open the window yourself on the [self-service enablement page](https://contoso.sharepoint.com/sites/euda-sample/script-enablement/script-enablement.aspx), or from your deploy script — see **Opening the Window From Your Deploy Script** below. The window is 24 hours; upload all shell files during it. Files uploaded and registered while it is active retain their allowed status after the reset.
 
-   Updating the shell `.aspx` later requires requesting enablement again before uploading. Files in the `_data/` folder (CSS, HTML, JSON) can be updated any time with no ticket.
+   The grant comes first, once per site: register the site on the enablement page, an EUDA admin approves it, and after that you enable that site yourself whenever you deploy. A request for a site you hold no grant for is denied — the service re-checks server-side and does not take the client's word for who is asking.
 
-   **This cost applies only when a shell actually changes.** The deploy script compares local shells against the remote inventory and skips the tenant-admin sign-in entirely when none needs uploading, so a `_data/`-only deploy — which, with runtime module loading, is nearly all of them — needs Contribute and nothing more. Use `-ForceEnablement` to run the check anyway.
+   Updating the shell `.aspx` later means opening the window again. Files in the `_data/` folder (CSS, HTML, JSON) can be updated any time with no window at all.
+
+   **This cost applies only when a shell actually changes.** The deploy script compares local shells against the remote inventory and skips enablement entirely when none needs uploading, so a `_data/`-only deploy — which, with runtime module loading, is nearly all of them — needs Contribute and nothing more. Use `-ForceEnablement` to run the check anyway.
 
    Never re-upload an *unchanged* `.aspx` outside the window: it strips the executable flag, and the app starts downloading instead of running.
 
-   > A self-service process for enabling custom scripts is planned and will eventually replace the help desk ticket step.
-
 2. **Deploy to the app's own site**, per [One Site Per App](#where-the-app-lives-one-site-per-app) — the enablement window above is scoped to that site, which is one of the reasons not to share one.
 
-3. **Files must be uploaded to a standard Document Library** — not Site Pages. Site Pages processes `.aspx` files through SharePoint's master page and publishing pipeline, which conflicts with this platform. Use any regular document library (the default "Documents", or a dedicated one such as "Sample Sites"). Uploading to Site Pages by accident makes the app fail to load its CSS and HTML assets.
+3. **Files must be uploaded to a dedicated document library** — not Site Pages, and not the site's default "Documents" library. Site Pages processes `.aspx` files through SharePoint's master page and publishing pipeline, which conflicts with this platform; uploading there by accident makes the app fail to load its CSS and HTML assets.
+
+   Create a standard document library named for the app — `sample-sites`, `script-enablement`, `myapp` — and deploy into that. **Using the site's existing "Documents" library is not recommended**, even though it technically works. "Documents" is where people drop files: it is the default target of the Add button, of Teams file uploads, and of anything synced with OneDrive, so an app deployed there shares a namespace with arbitrary user content. Three consequences follow:
+
+   - **The cleanup sweep becomes dangerous.** A deploy script that deletes everything absent from the local source will happily delete someone's spreadsheet. Every deploy then depends on `-PreservePaths` being remembered and kept current.
+   - **The Design or Full Control grant gets wider than it should be.** The deployer needs it on the library holding the shell (see the next point); on "Documents" that means over the site's general file store rather than over the app.
+   - **The app's files stop being identifiable.** Anyone browsing the library sees `myapp.aspx` and `myapp_data/` mixed into unrelated files, with nothing marking which are load-bearing — the same collision problem that [the list-naming rule](#name-provisioned-lists-after-the-app) solves for lists.
+
+   A dedicated library costs one click to create, keeps the deploy sweep safe by construction, and scopes the elevated permission to the app.
 
 4. **The person uploading the `.aspx` shell file must have the "Add and Customize Pages" permission.** This is a separate, user-level requirement on top of the site-level enablement window. SharePoint stamps an execute flag on uploaded files based on the uploader's permissions at upload time — without it, the file downloads instead of loading in the browser.
 
    This permission is only included in two built-in SharePoint permission levels:
 
-   | Permission level | Add and Customize Pages |
-   |---|---|
-   | Full Control (Site Owner) | ✅ Yes |
-   | Design | ✅ Yes |
-   | Edit | ❌ No |
-   | Contribute | ❌ No |
-   | Read | ❌ No |
+| Permission level | Add and Customize Pages |
+|---|---|
+| Full Control (Site Owner) | ✅ Yes |
+| Design | ✅ Yes |
+| Edit | ❌ No |
+| Contribute | ❌ No |
+| Read | ❌ No |
 
    Users with Edit or Contribute access can upload the file but it will never execute — it downloads instead, even during the enablement window. The fix is to grant the deploying user **Design** or **Full Control** on the document library.
 
@@ -633,16 +662,80 @@ function ensureUser(loginName, digest) {
 
 ### Upload Order
 
-1. Navigate to a standard **Document Library** (not Site Pages)
+1. Navigate to the app's **dedicated document library** — create one named for the app if it does not exist yet (not Site Pages, not the default "Documents")
 2. Create the `_data` subfolder in that library
 3. Upload `styles.css` and `content.html` to the `_data` folder
 4. Upload the shell `.aspx` file to the parent folder
 5. Check the file in if required
 6. Test immediately while the custom script window is active
 
+### Deploying With a Script
+
+Clicking files into a library works once. After that it is a chore that silently breaks apps: someone uploads the shell before its `_data/` assets, or re-uploads an unchanged `.aspx` outside the window and strips its executable flag. A deploy script fixes the order, skips files that have not changed, and makes the deploy reviewable.
+
+The platform repo ships both halves: `deploy/Deploy-SampleLibrary.ps1` is the platform's own script — pre-flight, connect, enable only when needed, clean up, upload — and `deploy/examples/Deploy-MyApp.Example.ps1` is a complete minimal script for a single app, meant to be copied. The shape of both:
+
+```powershell
+# 1. Sign in as yourself. No admin rights, no service account, no secret in a file.
+Connect-PnPOnline -Url $SiteUrl -Interactive -ClientId $PnPClientId
+
+# 2. Read the remote inventory BEFORE deciding anything, so enablement is
+#    decided from evidence rather than from a switch someone remembered to pass.
+$remoteIndex = @{}
+Get-PnPFolderItem -FolderSiteRelativeUrl $LibraryName -ItemType File -Recursive |
+    ForEach-Object { $remoteIndex[$_.Name] = $_ }
+
+# 3. Only open a window if an .aspx shell actually changed.
+if ($shellsToUpload.Count -gt 0) { Enable-CustomScriptWindow -SiteUrl $SiteUrl }
+
+# 4. Upload _data/ deepest-first, shells last: the shell fetches its assets on
+#    first load, so it must never be the thing that arrives first.
+foreach ($file in $orderedFiles) {
+    Add-PnPFile -Path $file.FullName -Folder $remoteFolder
+}
+```
+
+Two rules worth stating outright, because both fail quietly:
+
+- **Deploy to the app's own document library, never Site Pages and never the default "Documents".** Site Pages runs `.aspx` through the publishing pipeline and the app fails to load its assets; "Documents" mixes the app into arbitrary user files and puts them within reach of the cleanup sweep.
+- **Register every file the app rewrites at runtime as seed-only.** The local copy is a first-run seed; the deployed copy is live state. See **Files the App Rewrites at Runtime Are Seeds Locally, State Remotely**.
+
+If the library is shared with another app, the cleanup pass needs to know: a sweep that deletes everything absent from your local source will happily delete the other app. The platform script takes `-PreservePaths` for exactly this.
+
+### Opening the Window From Your Deploy Script
+
+Enabling a site is self-service, so the deploy script can do it — you sign in as yourself and hold no admin rights at any point. The platform's script does this by default, because the site it deploys to holds a grant:
+
+```powershell
+.\Deploy-SampleLibrary.ps1
+```
+
+For an app's own script, `deploy/examples/Enable-CustomScriptWindow.ps1` is a paste-in function. It queues a request, wakes the service, and waits for the window:
+
+```powershell
+. "$PSScriptRoot/Enable-CustomScriptWindow.ps1"
+
+Enable-CustomScriptWindow -SiteUrl 'https://contoso.sharepoint.com/sites/euda-myapp'
+# -> Queued request 12 for .../euda-myapp
+# -> Window is OPEN (closes 2026-08-26T15:50:46Z UTC).
+
+# then upload as usual, inside the window
+Add-PnPFile -Path ./myapp.aspx -Folder 'myapp'
+```
+
+What it does under the hood is worth knowing, because it explains why a script is allowed to do this at all. It writes an item to a request list; SharePoint stamps `Author` on that item and no client can set it. A service re-checks `(Author, SiteUrl)` against an admin-curated grants list before flipping anything, so the identity being authorized is the one SharePoint vouched for, not one the script claimed. A request for a site you hold no grant for comes back `Denied`.
+
+The function key in that config is anti-DoS, not authorization — the same model as a Power Automate SAS URL. It confers no authority, so it is configuration rather than a secret. That is why it can sit in a page's config file where a browser reads it.
+
+Three failure modes to expect:
+
+- **Denied** — you hold no grant for that site. Register it on the enablement page and ask an EUDA admin to approve.
+- **Timed out** — the request stays queued and a safety-net timer collects it within about 10 minutes. Re-run shortly rather than re-requesting.
+- **Window open, upload still downloads** — the window is site-level; the uploader also needs Design or Full Control, which is the separate requirement above.
+
 ### Updating Your Application
 
-**No update should require changing the shell.** Because the shell loads assets at runtime, features, styles, markup, and entirely new JavaScript modules all ship by replacing or adding files in `_data/` — Contribute-level, no ticket, effective on the next page load.
+**No update should require changing the shell.** Because the shell loads assets at runtime, features, styles, markup, and entirely new JavaScript modules all ship by replacing or adding files in `_data/` — Contribute-level, no window, effective on the next page load.
 
 If an update appears to need a shell edit, that is a signal, not a scheduling problem: the shell is holding logic that belongs in `_data/`. Move it instead of booking a custom-script window. The genuine exceptions are boot-level changes — renaming the data folder, adding a canonical helper — which should be rare to nonexistent after initial deployment.
 
@@ -690,7 +783,10 @@ If an update appears to need a shell edit, that is a signal, not a scheduling pr
 | Load CSS/HTML at runtime | REST `$value` endpoint (static files only — not `.aspx`) |
 | Add a JS module without a shell redeploy | `manifest.json` + loader in `app.js` — see Adding Modules Without Redeploying the Shell |
 | How big may the shell be? | There is no size limit. The test is behavioural: no feature code, no application state |
-| Where to deploy files | Standard Document Library only — **not** Site Pages |
+| Open the custom-script window | Self-service: the enablement page, or the deploy script doing it for you — no admin rights |
+| Deploy an app | A script, not manual uploads — `_data/` deepest-first, shells last; see Deploying With a Script |
+| Share a library with another app | `-PreservePaths` in the deploy script, so cleanup does not delete the other app |
+| Where to deploy files | A dedicated document library named for the app — **not** Site Pages, and **not** the default "Documents" |
 | Where to put a new app | Its own communication site, `euda-<app>`, joined to a hub and listed in the site registry |
 | Access control | SharePoint groups + item-level permissions — see [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx) |
 | Audit trail | List versioning — see [Permissions & Auditing](SHAREPOINT_PERMISSIONS_PATTERN.aspx) |

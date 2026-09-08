@@ -1,6 +1,6 @@
 # Building Automation with the Worker Pool Pattern
 
-> **Worker Pool Pattern — v1.4** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Worker Pool Pattern — v1.6** · updated 2026-08-27. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 > **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
 
@@ -32,7 +32,9 @@ This is a composition pattern: read the [SharePoint App Pattern](SHAREPOINT_APP_
 
 | Your situation | Use |
 |---|---|
-| The work is connector-shaped (read a list, send an email, call an API) and fully tenant-side | **Power Automate scheduled flow** — simpler, always-on, no pool needed |
+| The work is connector-shaped (read a list, send an email, post to Teams) and fully tenant-side | **Power Automate scheduled flow** — simpler, always-on, no pool needed |
+| The work calls an external API and premium licensing is available | **Power Automate scheduled flow** — the generic HTTP action is a premium connector, so confirm the licence first |
+| The work calls an external API and premium licensing is **not** available | **This pattern, or Pattern B + Task Scheduler** — no premium licence needed, and the call runs as a named person |
 | One person's machine is reliably on and the job is theirs alone | **Packaged Python Pattern B + Task Scheduler** |
 | The work needs Python, the user's own data permissions, or local resources — and the *team* should keep it running rather than one machine | **This pattern** |
 | The schedule must be guaranteed, sub-minute, exactly-once, or involves regulated data | **None of the citizen tiers** — escalate to IT-supported hosting |
@@ -115,7 +117,8 @@ Every implementation must demonstrate its core guarantee on demand: fire **N sim
 - The worker folder and status page deploy like any other sample via the platform deploy script; the status page is an `.aspx` shell, so the [custom-script enablement window](SHAREPOINT_APP_PATTERN.aspx) applies to it (not to the worker folder).
 - The coordination lists are *not* deployed — the first worker to connect creates them. An owner with list-creation rights should connect once before wide rollout. The shared app registration is consented for the scope this needs (`Sites.Manage.All`), so provisioning is a permissions question about the *user*: the connecting owner needs list-creation rights on the site.
 - Job output files that workers overwrite at runtime must be registered as **seed-only** in the deploy script (`$SeedOnlyFiles`): uploaded when missing, never overwritten by a redeploy.
-- **Distributing the worker to pool participants** follows the [Packaged Python pattern's team-distribution guidance](PACKAGED_PYTHON_PATTERN.aspx): the SharePoint site hosting the coordination lists and status page also hosts the worker's release folder and a `version.json`. The worker checks it at startup (non-blocking) and the dashboard surfaces "a newer version is available," so the pool converges on the current release instead of running a mix of copies.
+- **Distributing the worker to pool participants** follows the [Packaged Python pattern's team-distribution guidance](PACKAGED_PYTHON_PATTERN.aspx): the SharePoint site hosting the coordination lists and status page also hosts the worker's release folder and a `version.json`. A mixed-version pool is the failure mode this prevents, so the worker should carry the staged-update block — at startup it offers the new release, stages it, and lets `launch.cmd` swap and restart, converging the pool on one release for a single keystroke per participant. Keep the dashboard's "a newer version is available" banner as well: it covers a release published while a worker is already running.
+- **The release library ACL is a pool-wide trust decision.** Write access to it is equivalent to code execution on every participant's machine. Break inheritance on the library, Owners Edit and everyone else Read, external sharing off — see the Packaged Python guidance for the full list.
 
 ---
 
@@ -139,7 +142,7 @@ Every implementation must demonstrate its core guarantee on demand: fire **N sim
 
 | Piece | Where |
 |---|---|
-| Worker app (Pattern C, with race proof) | `euda-worker/` in the Sample Sites library |
+| Worker app (Pattern C, with race proof) | `euda-worker/` in the `Sample Sites` library |
 | Status page | [euda-worker-status.aspx](euda-worker-status.aspx) |
 | Coordination lists | `EUDA Schedules`, `EUDA JobRuns` (auto-provisioned on the sample site) |
 | Demo job | `weather-to-json` — fetches a public API and overwrites `euda-worker_data/latest.json` |
@@ -154,6 +157,6 @@ Every implementation must demonstrate its core guarantee on demand: fire **N sim
 | Make double-runs harmless | Idempotent jobs only — overwrite, upsert, key by `RunId` |
 | See pool activity | Status page; JobRuns list (native SharePoint views work too) |
 | Pause a job | `Enabled = No` on the schedule item |
-| Add a job type | New catalog function in the worker (owner-reviewed code), then publish a release (redeploy the folder, bump `version.json`) |
+| Add a job type | New catalog function in the worker (owner-reviewed code), then publish a release (upload the folder, bump `version.json` with the new version and sha256) |
 | Prove correctness | Race proof: N simultaneous claims → exactly one 204 |
 | Outgrow the pool | Same lists, new engine: Power Automate flow or IT-owned Azure Function |

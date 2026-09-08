@@ -1,10 +1,10 @@
 # Claude Code — Packaged Python Pattern: Project Prompt
 
-> **Packaged Python Pattern — v1.6** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Packaged Python Pattern — v2.0** · updated 2026-08-27. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 > **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
 
-Paste the block below as your first message when starting a new Packaged Python project. Customize the bracketed sections, and replace every `<...>` placeholder with your organization-specific values (SQL Server hostname, SharePoint site URLs, etc). The Entra tenant and app registration IDs are already filled in — they are the same for every app.
+Paste the block below as your first message when starting a new Packaged Python project. Customize the bracketed sections, and replace every `<...>` placeholder with Contoso-specific values (SQL Server hostname, SharePoint site URLs, etc). The Entra tenant and app registration IDs are already filled in — they are the same for every app.
 
 ---
 
@@ -121,13 +121,13 @@ Use `mssql-python` (Microsoft's official driver — it bundles its own driver bi
 from mssql_python import connect
 
 # Entra-enabled servers (Azure SQL, Entra-joined SQL Server) — browser sign-in
-# through your organization's normal Conditional Access flow; token caches afterward:
+# through Contoso's normal Conditional Access flow; token caches afterward:
 conn = connect(
     "Server=<sql-server-hostname>;Database=<database>;Encrypt=yes;"
     "Authentication=ActiveDirectoryInteractive"
 )
 
-# On-prem SQL Server on the corporate domain (e.g. <your-sql-server-hostname>) — the
+# On-prem SQL Server on the corporate domain (e.g. SQLDEV01) — the
 # Windows session is the identity, no prompt:
 conn = connect(
     "Server=<sql-server-hostname>;Database=<database>;Encrypt=yes;"
@@ -234,7 +234,7 @@ if __name__ == "__main__":
         sys.exit(stcli.main())
 ```
 
-- The first-run hygiene block above is part of the canonical bootstrap — include it verbatim. Streamlit's email prompt, usage telemetry, Deploy button (its external hosting service), Watchdog nag, and skills dialog are never shown to users at your organization.
+- The first-run hygiene block above is part of the canonical bootstrap — include it verbatim. Streamlit's email prompt, usage telemetry, Deploy button (its external hosting service), Watchdog nag, and skills dialog are never shown to Contoso users.
 - **Do not add `watchdog` to the PEP 723 dependency list** to silence the "install the Watchdog module" message. That message also tells macOS users to run `xcode-select --install`, which a citizen-tier app has no business suggesting. Watchdog would put a package with native components on every operator's machine to service a developer feature that cannot fire in production. Turning the watcher off is smaller, more correct, and drops a polling thread.
 - **Do not set `logger.hideWelcomeMessage`** to tidy up the terminal. It also suppresses Streamlit's `URL: http://localhost:8501` line, and the app cannot reliably reprint that: `streamlit.config.get_option("server.port")` read before launch returns the built-in default and ignores both `STREAMLIT_SERVER_PORT` and `config.toml`, because the overlay happens later in `bootstrap.load_config_options`. Pinning the port in `sys.argv` to make it knowable would break Streamlit's own fallback to the next free port when one instance is already running. Print the banner *before* the runtime starts and let Streamlit print the address.
 - Server binds to localhost only. Never set `--server.address 0.0.0.0`.
@@ -307,7 +307,8 @@ Two details are not optional. **Detect colour support first** — a console that
 
 - **No hardcoded secrets.** No passwords in connection strings, no API keys, no tokens. Use `keyring` if a secret is unavoidable.
 - **No `subprocess.run(..., shell=True)`.** Use the list form `["cmd", "arg1", "arg2"]` with no shell interpolation.
-- **No runtime code download or execution.** No `urllib`/`httpx` fetches that get `exec()`ed. No `pip install` calls.
+- **No runtime code download or execution.** No `urllib`/`httpx` fetches that get `exec()`ed, `eval`ed, `compile`d, or imported. No `pip install` calls. Downloaded bytes never become live code in the running process — this has no exception.
+- **The staged updater is the one narrow exception, and it is not yours to write.** The canonical update block in *Distribution and versioning* may download a complete replacement `app.py` to `app.py.staged`. It must verify the sha256 published in `version.json`, must never execute or import what it downloaded, and must hand the swap to `launch.cmd` by exiting with code 10. Copy it verbatim or leave updating out entirely — a hand-written fetch-and-run is a defect even when it resembles this one.
 - **No writing to system locations.** Logs and temp files go under `%LOCALAPPDATA%\<appname>\`.
 - **No raw SQL from user input.** Parameterize everything.
 - **No REGULATED data written to local files** — PHI, payment card data, export-controlled material. If the app handles those, escalate; this tier does not cover it.
@@ -369,7 +370,27 @@ exit /b 1
 
 :run
 "%UV%" run app.py
+if %ERRORLEVEL% neq 10 exit /b %ERRORLEVEL%
+
+rem Exit code 10 means the app staged an update and asked to be restarted.
+rem The launcher does the swap because nothing is reading app.py right now.
+if defined EUDA_UPDATED (
+  echo Update was already applied once this launch - not repeating.
+  exit /b 0
+)
+set "EUDA_UPDATED=1"
+if not exist "app.py.staged" (
+  echo No staged update found - nothing to apply.
+  exit /b 0
+)
+if exist "app.py.bak" del "app.py.bak"
+move /y "app.py" "app.py.bak" >nul
+move /y "app.py.staged" "app.py" >nul
+echo Update applied. Restarting...
+goto :run
 ```
+
+The update tail is present in every app whether or not the app uses the staged updater — an app without the update block never exits 10, so the tail never fires. `ERRORLEVEL` is read outside any parenthesised block, so it is not subject to batch's parse-time expansion trap. `EUDA_UPDATED` bounds the swap to one per launch, and `app.py.bak` is one deep: recovery, not rollback.
 
 Save `launch.cmd` with CRLF line endings — `goto :label` is unreliable in LF-only batch files.
 
@@ -377,14 +398,153 @@ The `README.md` must include: app name, owner (name + email), brief purpose, dat
 
 `HOW-TO-RUN.md` is that colleague's page, and every app ships one. Keep it to a single page: double-click `launch.cmd` on Windows and expect the first run to be slow (it installs uv and downloads Python); `brew install uv` then `uv run app.py` on a Mac, since `launch.cmd` is Windows-only; how to stop the app, including that closing the browser tab does not; anything the user must have in hand before starting (a key from Keeper, a file to point at); and a short table of the errors they are most likely to hit and what each means.
 
-## Distribution and versioning (default)
+## Distribution and versioning (default — off unless the app is team-distributed)
 
-For an app distributed to a team, the release channel is a SharePoint site (site creation is open at your organization — any user can create one, no ticket):
+An app sent around as an email attachment or a OneDrive link has no version identity, no named publisher, and no integrity check, and nothing tells a stale copy from a current one. For an app distributed to a team, the release channel is a SharePoint site instead (site creation is open at Contoso — any user can create one, no ticket).
 
-- The release folder (`app.py`, `launch.cmd`, `README.md`, `HOW-TO-RUN.md`) lives in a document library, alongside a `version.json` (`{"version": ..., "released": ..., "notes": ..., "url": ...}`).
-- `app.py` declares a `__version__` constant. At startup it fetches `version.json` (one `httpx` GET with the SharePoint Bearer token) and, if a newer release exists, tells the user and points at the download URL. The check must be **non-blocking** — if the site is unreachable, log it and run anyway. Never auto-download or auto-execute the new version.
-- Publishing a release = uploading a new `app.py` and updating `version.json`. Releases never touch Entra (the shared app registration is untouched), so they are entirely self-service.
-- For worker pool apps, host `version.json` on the same site as the coordination lists and surface "a newer version is available" on the dashboard.
+This section is **default and opt-in**. A single-user app has no release library and gains nothing from the update block; leave it out.
+
+### The release library (fixed, when you use this section)
+
+The library holding the release folder is a code distribution channel, and its write ACL decides what runs on every consumer's machine. Configure it deliberately:
+
+- **Break permission inheritance on the library itself.** Site-level permissions drift — someone adds a Members entry for an unrelated reason and silently grants write to your code.
+- **Owners: Edit. Members: Read. Visitors: Read.** A communication site ships Members with Edit by default; leaving that in place defeats the whole arrangement.
+- **Keep the Owners group small**, and record the release site URL and who holds write in the app's `README.md`. The signing authority should be a reviewable fact, not a setting nobody opens.
+- **External sharing off.** If a guest lands read on this library, the updater becomes an automated outside-Contoso distribution channel — see *Out of scope*.
+- **Leave library version history on.** It gives you who-published-what-when and one-click recovery of a replaced `app.py`.
+
+### `version.json`
+
+```json
+{
+  "version": "1.4.0",
+  "released": "2026-08-27",
+  "notes": "Adds the export tab",
+  "sha256": "9f2c...",
+  "url": "https://contoso.sharepoint.com/sites/<your-site>/Shared%20Documents/my-app"
+}
+```
+
+`sha256` is the hash of the published `app.py` — `Get-FileHash app.py -Algorithm SHA256`. `url` is **for humans only**; the update block never reads it.
+
+### The update block (fixed — copy verbatim)
+
+Place it in the pre-Streamlit bootstrap branch for Pattern C, or at the top of `__main__` for Pattern B. Same block either way — it runs in ordinary console Python before any runtime starts, so `sys.exit` propagates normally and no Streamlit server, browser tab, or session state exists yet to discard.
+
+```python
+# --- Platform staged-update block - copy verbatim -------------------------
+# Offers a published update, stages it, and hands the swap to launch.cmd.
+# It never executes or imports what it downloads: the bytes go to a file,
+# this process exits, and the launcher starts a fresh one.
+
+__version__ = "1.3.0"
+
+TENANT_ID = "<your-tenant-id>"
+CLIENT_ID = "<your-entra-client-id>"
+SHAREPOINT_HOST = "https://contoso.sharepoint.com"
+RELEASE_SITE = f"{SHAREPOINT_HOST}/sites/<your-site>"
+RELEASE_FOLDER = "/sites/<your-site>/Shared Documents/<app-folder>"
+
+UPDATE_EXIT_CODE = 10
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in str(value).strip().split("."))
+
+
+def _release_file_url(name: str) -> str:
+    # Pinned to the compiled-in constants above. Never build this from
+    # version.json's "url" field - a tampered manifest must not be able to
+    # redirect the payload somewhere else.
+    from urllib.parse import quote
+
+    path = quote(f"{RELEASE_FOLDER}/{name}")
+    return f"{RELEASE_SITE}/_api/web/GetFileByServerRelativeUrl('{path}')/$value"
+
+
+def _cached_token() -> str | None:
+    """Bearer token from the local cache only. None means 'skip the check'."""
+    # disable_automatic_authentication keeps this from opening a browser. On a
+    # first run the cache is cold - and a freshly copied folder is current by
+    # definition, so there is nothing to update to.
+    try:
+        from azure.identity import (
+            InteractiveBrowserCredential,
+            TokenCachePersistenceOptions,
+        )
+
+        credential = InteractiveBrowserCredential(
+            tenant_id=TENANT_ID,
+            client_id=CLIENT_ID,
+            cache_persistence_options=TokenCachePersistenceOptions(name=APP_NAME),
+            disable_automatic_authentication=True,
+        )
+        return credential.get_token(f"{SHAREPOINT_HOST}/.default").token
+    except Exception:
+        return None
+
+
+def check_for_update() -> None:
+    """Offer a published update. Non-blocking: any failure just returns."""
+    token = _cached_token()
+    if token is None:
+        return
+    try:
+        import hashlib
+        import json
+        from pathlib import Path
+
+        import httpx
+
+        headers = {"Authorization": f"Bearer {token}"}
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(_release_file_url("version.json"), headers=headers)
+            response.raise_for_status()
+            manifest = json.loads(response.content)
+
+        latest = str(manifest["version"])
+        if _version_tuple(latest) <= _version_tuple(__version__):
+            return  # current - and never move backwards, even if told to
+
+        print(f"\n  Update available: {latest}  (you are running {__version__})")
+        print(
+            f"  Released {manifest.get('released', 'unknown')}"
+            f" - {manifest.get('notes', 'no notes')}"
+        )
+        if input("\n  Install it now? [y/N] ").strip().lower() not in ("y", "yes"):
+            return
+
+        print("  Downloading...")
+        with httpx.Client(timeout=60.0) as client:
+            response = client.get(_release_file_url("app.py"), headers=headers)
+            response.raise_for_status()
+            payload = response.content
+
+        # Verify before anything reaches the disk.
+        if hashlib.sha256(payload).hexdigest() != str(manifest["sha256"]).lower():
+            print("  Checksum did not match - update refused.")
+            return
+
+        Path(__file__).with_name("app.py.staged").write_bytes(payload)
+    except Exception as exc:
+        logging.getLogger(__name__).info("Update check skipped: %s", exc)
+        return
+
+    # Deliberately outside the except. Never widen that to a bare `except:` -
+    # SystemExit is a BaseException and a bare except would swallow the restart.
+    print("  Update staged. Restarting to apply it...\n")
+    sys.exit(UPDATE_EXIT_CODE)
+```
+
+Notes on the block:
+
+- **It fails safe by construction.** Every failure path — cold cache, offline, 403, malformed manifest, checksum mismatch, unwritable folder — returns and the app runs normally. The check can never prevent the app from starting.
+- **Verify `disable_automatic_authentication` against the installed `azure-identity`** when you first build this. If the parameter is not accepted, the constructor raises, `_cached_token` returns `None`, and the check silently skips — the failure lands in the safe direction, but you will have a check that never fires.
+- **Call it before `print_banner()`** in Pattern C. Printing how to stop the app and then exiting to update reads as a bug.
+- **Stage inside the app folder**, as the block does. `launch.cmd` is identical in every app, so it cannot know an app-specific staging path; and if the app folder is not writable the update could not be applied anyway, so failing here is failing at the right time.
+- Publishing a release = upload the new `app.py`, update `version.json` with the new version and hash. Releases never touch Entra, so they stay self-service.
+- For worker pool apps, host `version.json` on the same site as the coordination lists. The startup check catches the common case; keep the dashboard's "a newer version is available" banner for a release that lands while the app is already running.
 
 ## Out of scope for this tier — stop and escalate (fixed)
 
@@ -394,7 +554,7 @@ If the requirement includes any of these, this app needs IT-supported hosting, n
 - Listening sockets, webhooks, or any inbound network exposure
 - Multi-user concurrent writes beyond what SharePoint Lists or SQL handle natively
 - Data classified above Internal — PHI, payment data, any regulated data
-- Distribution outside your organization
+- Distribution outside Contoso
 - Modifying Active Directory, Entra ID, or Intune state
 
 ## When in doubt

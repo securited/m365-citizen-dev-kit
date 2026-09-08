@@ -24,3 +24,21 @@ exit /b 1
 
 :run
 "%UV%" run app.py
+if %ERRORLEVEL% neq 10 exit /b %ERRORLEVEL%
+
+rem Exit code 10 means the app staged an update and asked to be restarted.
+rem The launcher does the swap because nothing is reading app.py right now.
+if defined EUDA_UPDATED (
+  echo Update was already applied once this launch - not repeating.
+  exit /b 0
+)
+set "EUDA_UPDATED=1"
+if not exist "app.py.staged" (
+  echo No staged update found - nothing to apply.
+  exit /b 0
+)
+if exist "app.py.bak" del "app.py.bak"
+move /y "app.py" "app.py.bak" >nul
+move /y "app.py.staged" "app.py" >nul
+echo Update applied. Restarting...
+goto :run

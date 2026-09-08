@@ -1,6 +1,6 @@
 # Claude Code — SharePoint App Pattern: Project Prompt
 
-> **SharePoint App Pattern — v1.7** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **SharePoint App Pattern — v1.12** · updated 2026-09-03. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 > **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
 
@@ -102,7 +102,7 @@ The `$value` endpoint returns raw file bytes for CSS/HTML/JSON assets, bypassing
 
 ### Module Loading (fixed for any app beyond one JS file)
 
-The shell fetches a **fixed** asset list. Never add a module by editing it — that is a ticket-gated redeploy. Instead `app.js`, itself a `_data/` file, extends the load chain at runtime using the same mechanism the shell used to load it: fetch text, wrap in a Blob, append a `<script>`. No `eval()`, no CDN.
+The shell fetches a **fixed** asset list. Never add a module by editing it — that is a shell redeploy, which needs a custom-script window and Design or Full Control. Instead `app.js`, itself a `_data/` file, extends the load chain at runtime using the same mechanism the shell used to load it: fetch text, wrap in a Blob, append a `<script>`. No `eval()`, no CDN.
 
 `manifest.json` in `_data/` lists modules in load order:
 
@@ -150,7 +150,7 @@ function loadModules() {
 loadModules().then(initApp);
 ```
 
-Adding a feature = upload the module + add one line to `manifest.json`. Both `_data/`, both Contribute-level, no ticket. Fetch the manifest alongside the app's largest data asset so its round trip overlaps existing work.
+Adding a feature = upload the module + add one line to `manifest.json`. Both `_data/`, both Contribute-level, no window. Fetch the manifest alongside the app's largest data asset so its round trip overlaps existing work.
 
 **Keep `FALLBACK_MODULES` byte-identical to the manifest's module list, and update both in the same commit.** A manifest naming a module that was never uploaded, and a drifted fallback list, both deploy cleanly and fail only in the browser — the second only on the day the manifest itself fails to load. The deploy script enforces this pre-flight (parses every `manifest.json`, checks each module exists, compares against `FALLBACK_MODULES`) and aborts rather than shipping a broken app.
 
@@ -386,12 +386,43 @@ GET /_api/SP.UserProfiles.PeopleManager/GetMyProperties
 
 ---
 
+## External APIs (fixed: where the call is made. default: which route)
+
+Consuming a third-party API is supported. Never call one directly from the
+shell or a `_data/` module when it needs a key, token, or secret of any kind —
+a browser reads everything the page reads, so the credential is published the
+moment you ship it. That part is fixed.
+
+Route by what the API needs:
+
+- **Public, no auth, and sends CORS headers** — a direct `fetch()` from the
+  browser is fine. Confirm CORS actually works from the SharePoint origin
+  before designing around it; most APIs do not allow it.
+- **Needs a key, token, or any credential** — the call happens somewhere the
+  user cannot read. Two routes, and the choice is usually made for you:
+  - **Power Automate flow.** Always-on, no machine required. BUT the generic
+    HTTP action is a PREMIUM connector — if the app owner has no premium or
+    per-flow licence, this route is simply unavailable. Confirm the licence
+    before recommending it; do not assume it.
+  - **A companion Packaged Python app** that calls the API and writes results
+    into a SharePoint list, which this app then reads normally. No premium
+    licence, real Python for parsing and transformation, and it runs as a named
+    person so the audit trail stays attributable. Use Pattern B with Task
+    Scheduler for one owner's machine, or the Worker Pool pattern when the team
+    should keep it running. Ask for PACKAGED_PYTHON_PROMPT.md before building it.
+- **Guaranteed uptime, or the data is regulated** — neither citizen route
+  qualifies; escalate to IT-hosted.
+
+State which route you are taking and why. If you propose a flow, say that it
+depends on premium licensing so the user can check before you build on it.
+
 ## Power Automate Integration (default)
 
 Use HTTP-triggered Power Automate flows for:
 - Sending email or Teams messages
 - Any server-side computation
-- Calling external APIs with secrets
+- Calling external APIs with secrets — **subject to the premium-connector
+  caveat above**
 - Scheduled operations
 - Approval workflows
 
@@ -556,25 +587,34 @@ In `loadMessages` / the main data-load function, detect 404 and show the setup b
 Two independent conditions must both be met for an `.aspx` file to execute in the browser rather than download:
 
 **1. Site-level: custom scripts enabled**
-The target SharePoint site must have `-DenyAddAndCustomizePages 0` active at the time of upload. This is a 24-hour window opened via a help desk ticket. Files uploaded during the window retain their executable status after it closes. Files in `_data/` (CSS, HTML, JSON) are plain files and are unaffected by this setting.
+The target SharePoint site must have `-DenyAddAndCustomizePages 0` active at the time of upload. This is a 24-hour window, and it is **self-service** — the site owner opens it themselves in seconds from the enablement page, or from the deploy script, with no help desk ticket and no admin rights. Access is granted per site once, by an EUDA admin approving a registration. Files uploaded during the window retain their executable status after it closes. Files in `_data/` (CSS, HTML, JSON) are plain files and are unaffected by this setting.
+
+Never tell the user that deploying a shell requires a ticket or a wait — it does not, and that belief is what pushes people into redesigning an app to avoid a shell change they could have made in seconds.
 
 **2. User-level: "Add and Customize Pages" permission**
 The person uploading the `.aspx` file must have this permission at upload time. SharePoint stamps an execute flag on the file based on the uploader's rights — if missing, the file will always download instead of load, even during the window. This permission is only present in **Full Control** and **Design** permission levels. Edit and Contribute do not include it.
 
 Practical split: a designated deployer (Design or Full Control) uploads the `.aspx` shell. The rest of the team can update `_data/` files freely with Contribute access.
 
-Both conditions apply **only when a shell actually changes**. The deploy script compares local shells against the remote inventory and skips the tenant-admin sign-in entirely for a `_data/`-only deploy — which, with runtime module loading, is nearly every deploy; `-ForceEnablement` runs the check anyway. Never re-upload an unchanged `.aspx` outside the window: doing so strips its executable flag and the app starts downloading instead of running.
+Both conditions apply **only when a shell actually changes**. The deploy script compares local shells against the remote inventory and skips enablement entirely for a `_data/`-only deploy — which, with runtime module loading, is nearly every deploy; `-ForceEnablement` runs the check anyway. Never re-upload an unchanged `.aspx` outside the window: doing so strips its executable flag and the app starts downloading instead of running.
+
+Deploy into a **dedicated document library named for the app**, never Site Pages and never the site's default "Documents" library — "Documents" is where people drop unrelated files, which puts them in reach of the deploy's cleanup sweep and widens the Design/Full Control grant the deployer needs.
+
+Deploy with a script rather than manual uploads: it fixes the upload order (`_data/` deepest-first, shells last), skips unchanged files, and opens the window only when a shell needs it. Copy `deploy/examples/Deploy-MyApp.Example.ps1` from the platform repo, which does all three and calls `Enable-CustomScriptWindow` for the self-service window. If the target library is shared with another app, exclude that app's files from cleanup — a sweep that deletes everything absent from the local source will delete the other app.
 
 ---
 
 ## What NOT to Build (fixed)
 
-- Do not add a backend server, database, or external API — everything stays in SharePoint/M365
+- Do not add a backend server or a separate hosting environment. Everything runs in SharePoint/M365 — this is the premise the platform exists to protect
+- Do not add an app-owned database outside SharePoint. Lists and `_data/` files are the store. (Reading data that ALREADY lives in SQL Server is a different thing and is supported — via Packaged Python, as that user)
+- Consuming an external API is ALLOWED and is a normal thing to build. What is fixed is *where the call is made from*, not whether it happens — see External APIs below
 - Do not introduce a build step — npm, webpack, bundlers, transpilers. Every file must be uploadable as-is and readable as-is in the library. This is the fixed constraint; the next line is its consequence
 - Use vanilla JS. React, Vue, and Angular are out because they normally imply a build toolchain, not because a framework is forbidden by name — a no-build library loaded from `_data/` as a plain ES module does not break the rule. It is still not the default: say what it buys, confirm it needs no build and no CDN, and record the decision
 - Do not hardcode site URLs — always derive from `_spPageContextInfo.webAbsoluteUrl` or `window.location`
 - Do not store SECRETS — anything that grants access, such as API keys, connection strings, tokens, or flow trigger URLs — in any file uploaded to the document library. A browser reads everything the page reads
 - Confidential business data (salaries, deal terms, HR records) is a different thing and IS supported: store it in lists and protect it with permissions, not by hiding it in the UI. Never tell the user this platform cannot hold confidential data
+- Do not read another EUDA application's internal lists, even though SharePoint will allow it — that is a dependency its owner does not know exists and will break on their next refactor. Read only what that app has published in its contract (`<app>_data/contract.json`). If it publishes nothing you need, that is a conversation with its owner, not a query. When this app must exchange data with another one, ask for CROSS_APP_COMMUNICATION_PROMPT.md before designing the integration
 
 ---
 

@@ -11,14 +11,17 @@ It gives end-user / citizen developers the same "describe it and watch it appear
 | Automate your own work (crunch files, generate reports, query databases) | **[Packaged Python](patterns/PACKAGED_PYTHON_PATTERN.md)** — one single file colleagues run with a double-click; nothing to install; connects to data as *you* |
 | Run scheduled/background automation with no server | **[Worker Pool](patterns/WORKER_POOL_PATTERN.md)** — Packaged Python workers coordinated through SharePoint lists |
 
-Two **supporting patterns** apply across the others — read them alongside the pattern you're building in, not instead of it:
+Three **supporting patterns** apply across the others — read them alongside the pattern you're building in, not instead of it:
 
 | Concern | Supporting pattern |
 |---|---|
 | Who can see and change what, and proving who did what | **[SharePoint Permissions & Auditing](patterns/SHAREPOINT_PERMISSIONS_PATTERN.md)** — site/list/folder/file permissions *as* the app's authorization layer, and an audit trail you don't have to write |
 | Designing data that will grow, and what happens when it gets old | **[Storage Shape & Lifecycle](patterns/SHAREPOINT_STORAGE_LIFECYCLE_PATTERN.md)** — how many objects the storage layer creates, which mechanism can carry them, and archiving |
+| One app needing data or work from another | **[Cross-Application Communication](patterns/CROSS_APP_COMMUNICATION_PATTERN.md)** — a SharePoint list standing in for an API, behind a published contract that says what may be depended on |
 
 **Reading the patterns.** Each pattern in [`patterns/`](patterns/) has three files: the guide **`*_PATTERN.md`** (start here — it renders on GitHub, and the tables above link straight to it), a copy-paste **`*_PROMPT.md`** starter prompt that constrains the AI to the pattern's conventions, and **`*_PATTERN.aspx`** — the same guide published as a SharePoint page.
+
+**Pointing an AI assistant at this repo?** Start it on **[patterns/PATTERN_INDEX.md](patterns/PATTERN_INDEX.md)** — a routing guide that says which two or three of the seven guides a given task actually needs, rather than having it read all of them badly.
 
 **Fixed vs Default.** Every guide labels its rules: **Fixed** means deviating breaks the platform, its security model, or its audit trail; **Default** means it's the right answer absent a specific reason — a judgement call you're expected to make, and to record when you depart from it.
 

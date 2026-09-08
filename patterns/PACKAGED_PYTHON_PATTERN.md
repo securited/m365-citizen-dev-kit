@@ -1,6 +1,6 @@
 # Building Applications with the Packaged Python Pattern
 
-> **Packaged Python Pattern — v1.6** · updated 2026-08-20. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
+> **Packaged Python Pattern — v2.0** · updated 2026-08-27. This is a point-in-time copy; the authoritative version and changelog live on the [Development Patterns hub](https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/DEVELOPMENT_PATTERNS.aspx) — check there if you're unsure this is current.
 
 > **Fixed rules and defaults.** Anything labelled **Fixed** is binding — deviating from it breaks the platform, its security model, or its audit trail. Everything else here is a **Default**: the right answer absent a specific reason, and a judgement call you are expected to make rather than a rule to obey. Departing from a default is legitimate — name it, say what makes this case different and what you give up, and record it in the app's README so the next person finds the reasoning instead of the symptom. If a Fixed rule is the obstacle, stop and escalate rather than working around it.
 
@@ -12,7 +12,7 @@ A guide for building self-contained Python applications that run on the user's o
 
 ## Executive Summary
 
-This pattern packages a complete application as a **single Python file** that anyone at your organization can run with one command. It relies on two pieces of modern Python tooling:
+This pattern packages a complete application as a **single Python file** that anyone at Contoso can run with one command. It relies on two pieces of modern Python tooling:
 
 **uv** is a fast Python runtime and package manager. Once installed, `uv run app.py` downloads the right Python version, resolves dependencies, builds an isolated environment, and runs the script — automatically, on every machine, with zero manual setup.
 
@@ -73,7 +73,7 @@ Pick exactly one shape per app — never both in the same file. (There is no "Pa
 
 No service accounts, no stored passwords anywhere in this pattern. Every external system authenticates as the person running the app:
 
-- **SQL Server / Azure SQL** — on Entra-enabled servers, `Authentication=ActiveDirectoryInteractive` opens a browser sign-in through the normal Conditional Access flow; on on-prem domain servers (e.g. <your-sql-server-hostname>), `Trusted_Connection=yes` uses the Windows session directly.
+- **SQL Server / Azure SQL** — on Entra-enabled servers, `Authentication=ActiveDirectoryInteractive` opens a browser sign-in through the normal Conditional Access flow; on on-prem domain servers (e.g. SQLDEV01), `Trusted_Connection=yes` uses the Windows session directly.
 - **Microsoft Graph and SharePoint REST** — `InteractiveBrowserCredential` with a persistent token cache; every app signs in through the shared, IT-owned **Contoso EUDA Applications** registration (see The Shared App Registration below).
 - **The app inherits the user's permissions.** If the user can't read a table or site, neither can the app — a citizen app can never escalate anyone's access.
 
@@ -109,7 +109,7 @@ If a job isn't covered, ask before adding a library. The full prohibited list (w
 
 Before writing code, answer: where does the data live, and where do the results go?
 
-- **Data the app itself creates and owns** (state, results, shared team records) — **SharePoint Lists are the preferred store**, following the [SharePoint App Pattern](SHAREPOINT_APP_PATTERN.md). A SQL Server database is **not** the preferred home: provisioning tables and permissions requires DBA involvement, while any user at your organization can create a SharePoint site and lists self-service. See SharePoint Lists for App Data below.
+- **Data the app itself creates and owns** (state, results, shared team records) — **SharePoint Lists are the preferred store**, following the [SharePoint App Pattern](SHAREPOINT_APP_PATTERN.md). A SQL Server database is **not** the preferred home: provisioning tables and permissions requires DBA involvement, while any Contoso user can create a SharePoint site and lists self-service. See SharePoint Lists for App Data below.
 - Reading or writing **existing SQL Server / Azure SQL data** — connect with the user's identity via `mssql-python`, using the user's existing database permissions. Use SQL Server to reach data that already lives there, not to store new app data.
 - Reading **DB2** — never directly. Reach DB2 tables through the IT-managed SQL Server linked server, queried as SQL Server objects (or via `OPENQUERY` for pass-through).
 - Reading or writing **M365 content** (mail, SharePoint, profiles) — Microsoft Graph through `msgraph-sdk`.
@@ -361,21 +361,25 @@ Why it works this way: a freshly installed uv is not on the *current* session's 
 
 Ad-hoc copying works for one colleague; for a *team* it drifts — nobody knows which copy is current. Use a SharePoint site as the single distribution point:
 
-- **Site creation is open at your organization** — any user can create a SharePoint site, no ticket required. From the SharePoint home page ([contoso.sharepoint.com/_layouts/15/sharepoint.aspx](https://contoso.sharepoint.com/_layouts/15/sharepoint.aspx)) → **+ Create site**, pick a **Communication site** with the **Blank** template — not a Team site. A communication site is built for broadcasting to a broad audience (a few publish, many consume), which is the shape of a release channel; a Team site spins up an M365 group, shared mailbox, and Teams membership you don't need. Put the release folder (`app.py`, `launch.cmd`, `README.md`, `HOW-TO-RUN.md`) in a document library. (Reuse the team's existing site if one already fits.)
+- **Site creation is open at Contoso** — any user can create a SharePoint site, no ticket required. From the SharePoint home page ([contoso.sharepoint.com/_layouts/15/sharepoint.aspx](https://contoso.sharepoint.com/_layouts/15/sharepoint.aspx)) → **+ Create site**, pick a **Communication site** with the **Blank** template — not a Team site. A communication site is built for broadcasting to a broad audience (a few publish, many consume), which is the shape of a release channel; a Team site spins up an M365 group, shared mailbox, and Teams membership you don't need. Put the release folder (`app.py`, `launch.cmd`, `README.md`, `HOW-TO-RUN.md`) in a document library. (Reuse the team's existing site if one already fits.)
 - **Publish a `version.json` alongside the folder** so both people and the app itself can tell what's current:
 
 ```json
 {
-  "version": "1.3.0",
-  "released": "2026-07-02",
+  "version": "1.4.0",
+  "released": "2026-08-27",
   "notes": "Adds the export tab",
+  "sha256": "9f2c...",
   "url": "https://contoso.sharepoint.com/sites/<your-site>/Shared%20Documents/my-app"
 }
 ```
 
-- **The app checks `version.json` at startup** — one `httpx` GET with the same Bearer token used for list access, compared against a `__version__` constant in `app.py`. If a newer release exists, tell the user and point them at the download URL. Keep the check non-blocking: if the site is unreachable, log it and run anyway.
-- **Publishing a release is uploading files** — a new `app.py` plus an updated `version.json`. This never touches Entra (see The Shared App Registration), so releases are entirely self-service.
-- **This pairs with the [Worker Pool Pattern](WORKER_POOL_PATTERN.md)**: the same SharePoint site that hosts the pool's coordination lists and status page can host the worker's distributable and `version.json`, and the worker's dashboard can surface "a newer version is available" so the whole pool converges on the current release.
+- **Lock the release library down.** It is a code distribution channel, and its write ACL decides what runs on every consumer's machine. Break permission inheritance on the library, give Owners Edit and everyone else Read (a communication site ships Members with Edit — change it), keep the Owners group small, turn external sharing off, and leave version history on. Record the release site and who holds write in the app's `README.md`.
+- **Offering the update.** A banner that tells someone to go download a folder is a step most people skip, so the copies drift anyway. The app can do better: at startup, before any UI exists, it compares its own `__version__` against the published `version.json` and — if a newer release exists — prints the version, date, and release notes and asks whether to install it now. Answering yes downloads the new `app.py`, checks it against the published sha256, and writes it to `app.py.staged`. The app then exits with code 10, and `launch.cmd` performs the swap and restarts it. Total user experience: one keystroke. The check is non-blocking in every direction — offline, unreachable, cold token cache, or a checksum mismatch all mean "run the current version."
+- **Why the launcher does the swap.** The app never runs what it downloads. The bytes land in a file, the process ends, and a fresh process is started by the launcher from a file on disk — mechanically identical to a person having copied it there. That distinction is what keeps this inside the platform's security rules: the prohibition on downloaded code becoming live code *in the running process* stays absolute. It also sidesteps two practical problems — a script cannot cleanly overwrite itself while running, and a Streamlit app cannot cleanly relaunch itself while holding port 8501.
+- **What this replaces.** Sending `app.py` by email attachment or OneDrive link means no version identity, no named publisher, no integrity check, and no way to tell a stale copy from a current one. The release library gives you all four, provided its ACL is set deliberately. Write access to that library is then equivalent to code execution on every consumer's machine — a far narrower and more visible authority than "anyone who can send mail."
+- **Publishing a release is uploading files** — a new `app.py` plus an updated `version.json` carrying the new version and hash. This never touches Entra (see The Shared App Registration), so releases are entirely self-service.
+- **This pairs with the [Worker Pool Pattern](WORKER_POOL_PATTERN.md)**: the same SharePoint site that hosts the pool's coordination lists and status page can host the worker's distributable and `version.json`. The startup check converges the pool on the current release, and the dashboard's "a newer version is available" banner covers a release that lands while a worker is already running.
 
 ---
 
@@ -387,7 +391,7 @@ If a requirement includes any of these, the app needs IT-supported hosting, not 
 - Listening sockets, webhooks, or any inbound network exposure
 - Multi-user concurrent writes beyond what SharePoint Lists or SQL handle natively
 - Data classified above Internal — PHI, payment data, any regulated data
-- Distribution outside your organization
+- Distribution outside Contoso
 - Modifying Active Directory, Entra ID, or Intune state
 
 ---

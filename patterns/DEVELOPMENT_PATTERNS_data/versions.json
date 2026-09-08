@@ -1,9 +1,91 @@
 [
   {
+    "id": "pattern-index",
+    "name": "Pattern Index",
+    "kind": "index",
+    "current": "1.0",
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-09-03",
+        "summary": "New routing guide for AI assistants pointed at the pattern set: pick the app shape, check which supporting patterns are triggered, and see what each guide contains before opening it.",
+        "changes": [
+          "The seven pattern guides and their seven project prompts total about 353 KB. An assistant given the folder reads the first two or three guides, finds enough to start building, and stops. What it misses is never the app-shape guide -- it is the cross-cutting supporting patterns, because nothing in a build request announces that they apply",
+          "That is the expensive failure, because all three supporting patterns constrain the data model and none of what they constrain can be retrofitted: permission granularity needs the permissible unit to be a securable object from the first row, archive provenance columns and the Archives manifest cannot be backfilled, and a published contract has to be agreed before a consumer depends on it",
+          "The index is four ordered steps -- pick exactly one app shape, check the cross-cutting triggers, read the prompt rather than only the guide, and respect the Fixed/Default labels -- followed by a per-document section naming what only that guide settles and where to jump within it",
+          "A symptom-to-document table routes common failures and questions straight to a section: an .aspx that downloads instead of running, an undefined _spPageContextInfo, a 403 on a write, queries past 5,000 items, users who must not see each other's rows, a design that would create hundreds of lists, restored rows showing the wrong author",
+          "Carries the two known misreadings the Fixed/Default rule exists to prevent, so they are corrected at the entry point rather than after the fact: the shell's illustrative ~15 KB is not a hard limit, and 'sensitive data' is three different questions -- the platform can store confidential data, which is what the permissions pattern is for",
+          "Published as a Start Here card above the pattern cards on the hub, and wired into the repository through a new root CLAUDE.md and README.md so an assistant reads it before browsing the folder"
+        ]
+      }
+    ]
+  },
+  {
     "id": "sharepoint-app",
     "name": "SharePoint App Pattern",
-    "current": "1.7",
+    "current": "1.12",
     "versions": [
+      {
+        "version": "1.12",
+        "date": "2026-09-03",
+        "summary": "Deploying into the site's default \u201cDocuments\u201d library is now explicitly not recommended \u2014 apps get a dedicated library named for the app.",
+        "changes": [
+          "The deployment requirement said to use \u201cany regular document library (the default Documents, or a dedicated one)\u201d, which read as an endorsement of the path of least resistance. It now calls for a dedicated library named for the app, with the default Documents library marked not recommended",
+          "Three reasons are given, because \u201cit technically works\u201d was winning the argument. Documents is the default target of the Add button, of Teams file uploads and of OneDrive sync, so an app deployed there shares a namespace with arbitrary user content: the deploy script's cleanup sweep can delete someone's spreadsheet, the Design or Full Control grant ends up covering the site's general file store rather than the app, and nobody browsing the library can tell which files are load-bearing",
+          "Updated everywhere the old advice appeared rather than in one place: the Requirements step, the Upload Order first step, the \u201ctwo rules worth stating outright\u201d bullet, the Add-PnPFile example that used -Folder 'Documents', and the Quick Reference row",
+          "The project prompt gained the same rule in its deployment section, which had said nothing about which library to use",
+          "deploy/examples/Deploy-MyApp.Example.ps1 defaulted -LibraryName to 'Documents', which was the strongest endorsement of the old guidance. It now defaults to a library named for the app, and its parameter help carries the one-time New-PnPList command \u2014 the script assumes the library exists rather than creating it"
+        ]
+      },
+      {
+        "version": "1.11",
+        "date": "2026-08-26",
+        "summary": "Fixes the Add and Customize Pages permission table, which had been rendering as literal pipe characters.",
+        "changes": [
+          "The table listing which permission levels include Add and Customize Pages was indented three spaces as a continuation of the numbered step above it. The hub renderer only recognises a table when the line starts at column 0 (it tests line.charAt(0) === '|'), so every row fell through to the paragraph branch and readers saw the raw markdown — pipes, separator row and all — exactly where the guide explains why a shell uploaded without Design or Full Control downloads instead of running",
+          "De-indented to column 0; no wording changed. The constraint is now recorded with the renderer's other known limits so the next person does not re-indent it for tidiness and break it again"
+        ]
+      },
+      {
+        "version": "1.10",
+        "date": "2026-08-26",
+        "summary": "Split the fused 'no backend server, database, or external API' rule, and documented the premium-connector gate that made the old external-API advice unusable.",
+        "changes": [
+          "'Do not add a backend server, database, or external API' is now three rules, because they have three different answers and the strictest reading was winning. No backend server or separate hosting (fixed, it is the platform's premise). No app-owned database outside SharePoint (fixed — but reading data that already lives in SQL Server via Packaged Python is supported and always was). Consuming an external API is ALLOWED; what is fixed is where the call is made from",
+          "New 'Getting External API Data Into SharePoint' section with a routing table. The only fixed rule is that a credentialed call never happens in the browser, since a browser reads everything the page reads. Everything else is a Default chosen on licensing and uptime",
+          "Documented that Power Automate's generic HTTP action is a PREMIUM connector. The guide had listed 'call external REST APIs' as a flow capability without that caveat, so the advice quietly failed for anyone without a premium or per-flow licence — which is the default state for citizen developers here",
+          "Named the companion Packaged Python app as the workhorse route rather than a fallback: no premium licence, real Python for parsing and transformation, and it runs as a named person so rows it writes stay attributable. The seam is a SharePoint list, so the browser app never knows the API exists and the ingestion route can change later without touching it",
+          "The two 'self-service enablement page' links were relative (script-enablement.aspx), which resolved inside the pattern library. The enablement app now lives in its own script-enablement library, so both had been dead — they are now absolute URLs to the real page",
+          "Cross-links the new Cross-Application Communication pattern: the 'honest cost' of one site per app now hands off to a published contract instead of ending on the trade-off, the supporting-pattern line names it alongside Permissions and Storage, and the Power Automate section notes that when the caller is another EUDA app a flow is one of four shapes and usually not the first. The project prompt gains a matching 'do not read another application's internal lists' rule under What NOT to Build",
+          "The deploy script is renamed Deploy-SampleLibrary.ps1, matching the library it targets; the guide's command examples and library references follow it"
+        ]
+      },
+      {
+        "version": "1.9",
+        "date": "2026-08-26",
+        "summary": "Points at the new Cross-Application Communication pattern from the two places this guide raises the problem and then leaves it open.",
+        "changes": [
+          "The 'honest cost' of one site per app — cross-app rollups get harder — used to end on the trade-off, which left 'read the other app's lists directly' as the reader's obvious next move. It now hands off to a published contract, and the supporting-pattern line beside it names Cross-Application Communication alongside Permissions and Storage",
+          "The Power Automate section notes that when the caller is another EUDA app rather than this app's own UI, a flow is one of four integration shapes and usually not the first to reach for — a SharePoint list carries the request with an audit trail and no bearer-secret URL to protect",
+          "The project prompt gains a matching rule under What NOT to Build: do not read another EUDA application's internal lists, even though SharePoint allows it — that is a dependency its owner does not know exists. Read only what that app published in its contract, and ask for CROSS_APP_COMMUNICATION_PROMPT.md before designing an integration",
+          "No other guidance changed; the shell is untouched, so this ships as a _data/-only update"
+        ]
+      },
+      {
+        "version": "1.8",
+        "date": "2026-08-25",
+        "summary": "Enabling a site is self-service now, not a help desk ticket — and the guide finally shows what a deploy script looks like.",
+        "changes": [
+          "Custom-script enablement no longer says 'open a help desk ticket'. A vetted site owner opens their own 24-hour window in seconds, from the enablement page or from their deploy script, holding no admin rights at any point. The old wait was hours, and days over a weekend, which is long enough that people redesigned apps to avoid a shell change they could now make in seconds",
+          "Access is granted per site, once: register the site on the enablement page and an EUDA admin approves with one click. Several people can each hold a grant for the same site and enable it independently",
+          "New 'Deploying With a Script' section — the guide previously described manual uploads only, which is how shells get uploaded before their _data/ assets and how unchanged .aspx files get re-uploaded outside the window and lose their executable flag. Shows the shape of a deploy script: sign in as yourself, read the remote inventory first, enable only when a shell actually changed, upload _data/ deepest-first with shells last",
+          "New 'Opening the Window From Your Deploy Script' section with the self-service call, plus the three failure modes to expect (Denied, timed out, and window-open-but-still-downloading, which is the separate Design or Full Control requirement)",
+          "Why a script is permitted to enable a site at all, since it explains the whole trust model: SharePoint stamps Author on the request item and no client can set it, and the service re-checks (Author, SiteUrl) against an admin-curated grants list before flipping anything. The function key in the config is anti-DoS, not authorization — the same model as a Power Automate SAS URL",
+          "Sharing a document library between two apps is now a stated hazard: a cleanup sweep that deletes everything absent from the local source will delete the other app. The platform deploy script gained -PreservePaths, and its own default protects the self-service enablement app that now shares the `Sample Sites` library",
+          "Self-service is now the platform deploy script's DEFAULT way to open the window — euda-sample is registered with the enablement service, so a full deploy including a shell upload needs no admin rights at any step. -TenantAdminEnablement falls back to Connect-SPOService for a site that holds no grant. When the enablement queue lives on the site being deployed to, the existing connection is reused rather than prompting for a second sign-in",
+          "Two runnable examples added to the platform repo: deploy/examples/Enable-CustomScriptWindow.ps1 (paste-in helper) and deploy/examples/Deploy-MyApp.Example.ps1 (a complete minimal deploy script for one app)"
+        ]
+      },
       {
         "version": "1.7",
         "date": "2026-08-20",
@@ -151,8 +233,27 @@
   {
     "id": "packaged-python",
     "name": "Packaged Python",
-    "current": "1.6",
+    "current": "2.0",
     "versions": [
+      {
+        "version": "2.0",
+        "date": "2026-08-27",
+        "summary": "Apps can offer their own updates. The user is asked, the app stages the new app.py, and launch.cmd swaps it and restarts — replacing the email-attachment distribution this platform was actually running on.",
+        "changes": [
+          "MIGRATION: the canonical launch.cmd changed, and app.py and launch.cmd must move together. An old launcher paired with a new app.py means the app exits 10, the launcher ignores it, and the app just closes with no update and no error. Redeploy both files to every app folder",
+          "New staged-update block, fixed and copied verbatim, offering a published release at startup: it prints the version, date, and notes, asks for an affirmative keystroke (no default-yes, no timeout), downloads the new app.py, verifies the sha256 published in version.json, and writes it to app.py.staged before exiting with code 10",
+          "launch.cmd gained an update tail: on exit code 10 it moves app.py to app.py.bak, moves the staged file into place, and restarts. EUDA_UPDATED bounds it to one swap per launch. The tail ships in every app whether or not the app updates — an app without the block never exits 10",
+          "The app never executes or imports what it downloads. Bytes land in a file, the process exits, and the launcher starts a fresh one from disk — mechanically identical to a person copying the file. That is the line the security carve-out is drawn on",
+          "Security rule amended: 'no runtime code download or execution' now names eval, compile, and import alongside exec, and states that downloaded bytes never become live code in the running process, with no exception. The staged updater is carved out as a canonical block the builder copies, explicitly 'not yours to write' — a hand-written fetch-and-run stays a defect even when it resembles the blessed one",
+          "The check runs pre-Streamlit, in the bootstrap branch, so sys.exit propagates normally and no server, browser tab, or session state exists yet to discard. Pattern B and Pattern C use the identical block",
+          "Cold token cache means skip the check: a freshly copied folder is current by definition, and the check must never be the thing that opens a sign-in browser. Every other failure path — offline, 403, malformed manifest, checksum mismatch, unwritable folder — also returns and runs the current version",
+          "The download URL is pinned to compiled-in site constants and never built from version.json's url field, so a tampered manifest cannot redirect the payload. Version comparison is ordered, so a rewritten manifest cannot push a pool backwards to an older release",
+          "New release library ACL requirements: break inheritance on the library, Owners Edit and everyone else Read (a communication site ships Members with Edit), keep Owners small and named in the app README, external sharing off, version history on. Write access to that library is now equivalent to code execution on every consumer's machine, and external sharing on it would make the updater an automated outside-Contoso distribution channel",
+          "version.json gained a sha256 field. It is not publisher authentication — manifest and payload share one ACL — but it closes the check-to-download window, catches corruption, and leaves an audit record of which bytes were published when",
+          "Distribution and versioning is default and opt-in: a single-user app has no release library and should leave the block out, keeping the blast radius proportional to the benefit",
+          "Fixed a latent defect found during the rewrite: all five sample launch.cmd files were saved LF despite the pattern requiring CRLF, which makes goto :label unreliable. Rewrote them as CRLF and added a .gitattributes rule, since the update restart depends on goto :run"
+        ]
+      },
       {
         "version": "1.6",
         "date": "2026-08-20",
@@ -218,7 +319,7 @@
           "The self-relaunch bootstrap now pre-seeds ~/.streamlit/credentials.toml so end users never see Streamlit's 'Welcome / Email:' prompt on first run",
           "Usage-stats telemetry disabled (STREAMLIT_BROWSER_GATHER_USAGE_STATS=false)",
           "Toolbar set to viewer mode (STREAMLIT_CLIENT_TOOLBAR_MODE=viewer) — hides the Deploy button (Streamlit Community Cloud is not approved hosting) and developer menu items",
-          "Applied to the existing Pattern C samples (sql-schema-explorer, parts-data-explorer) and to the project prompt's canonical snippet"
+          "Applied to the existing Pattern C samples (sql-schema-explorer, data-explorer) and to the project prompt's canonical snippet"
         ]
       },
       {
@@ -246,8 +347,27 @@
   {
     "id": "worker-pool",
     "name": "Worker Pool",
-    "current": "1.4",
+    "current": "1.6",
     "versions": [
+      {
+        "version": "1.6",
+        "date": "2026-08-27",
+        "summary": "Adopts the Packaged Python v2.0 staged updater so a pool converges on one release, and names the release library ACL as a pool-wide trust decision.",
+        "changes": [
+          "The worker should carry the staged-update block: a mixed-version pool is the exact failure mode it prevents, and convergence costs each participant one keystroke",
+          "The dashboard's 'a newer version is available' banner stays, now scoped to its real job — a release published while a worker is already running, which the startup check cannot catch",
+          "Write access to the release library is equivalent to code execution on every participant's machine; the ACL requirements are called out and cross-referenced to the Packaged Python guidance",
+          "Publishing a release now includes bumping version.json with the new version and sha256"
+        ]
+      },
+      {
+        "version": "1.5",
+        "date": "2026-08-26",
+        "summary": "Corrected the scheduling decision table, which sent all API work to Power Automate without mentioning the premium gate.",
+        "changes": [
+          "The 'connector-shaped work' row listed 'call an API' as a reason to prefer a Power Automate flow. The generic HTTP action is a premium connector, so that row was routing people toward something many of them cannot license. Split into three rows: connector-shaped tenant-side work, external API with premium available, and external API without it — the last pointing at this pattern or Pattern B plus Task Scheduler"
+        ]
+      },
       {
         "version": "1.4",
         "date": "2026-08-20",
@@ -384,6 +504,43 @@
           "Setup is a page, not a procedure — eight requirements (idempotent, previews before applying, correctly ordered, provisions the lifecycle machinery and the permissions, permission-gated with a plain-English message, self-verifying, schema-version-stamped, kept after go-live). Moved here from the Permissions pattern, which now cross-references it",
           "Administrative pages, with a ten-panel table (provisioning state, unit count vs budget, scope budget, threshold headroom, storage and growth, archive inventory, orphan sweep, access report, config in effect, provenance) and five rules — derived never authoritative, gate and degrade, be honest about the viewer's lens, preview and confirm destructive actions, and link to tenant tooling rather than approximating it",
           "Retention, ownership, and decommission decided while the lists are still empty; anti-pattern table; eleven-step design checklist; and an escalation boundary that separates an operational archive from Purview retention, legal hold, and defensible disposal"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cross-app-comms",
+    "name": "Cross-Application Communication",
+    "kind": "supporting",
+    "current": "1.1",
+    "versions": [
+      {
+        "version": "1.1",
+        "date": "2026-08-26",
+        "summary": "Links the worked example: the enablement service this pattern generalizes now has a reachable page to point at.",
+        "changes": [
+          "v1.0 named the self-service custom-script enablement service as the platform's live instance of the request-queue shape but could not link it — the app was mid-move between libraries and every candidate URL was dead. Both references are now links to the real page",
+          "The hub pointer in the version header uses the current library URL; v1.0 shipped with it already corrected, and the other guides were caught up separately",
+          "No guidance changed; _data/-only update, no shell touched"
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-08-26",
+        "summary": "How one app asks another for data or work — SharePoint lists standing in for an API, behind a published contract that says what may be depended on.",
+        "changes": [
+          "First release. Answers the cost the SharePoint App Pattern names but leaves open: one site per app makes cross-app rollups harder, and every team's workaround so far has been to read the other app's internal lists directly — which works until the day the producer renames a column and finds out a consumer exists",
+          "The published boundary (fixed): an app's lists are private, and other apps read only what it has deliberately published. Enforced by three mechanics because SharePoint enforces none of it — a 'Pub' naming segment so the boundary shows in site contents, a broken-inheritance group sized for the consuming audience, and the contract file that makes it accountable. Publish a projection, never the internal schema",
+          "The communication contract: <app>_data/contract.json at a well-known path, carrying every publication's fields, types, plain-English SEMANTICS, freshness promise, audience, retention and version. Machine-readable so a consumer can check it at startup, human-readable so a reviewer can read it. Registered in the site registry with a ContractUrl column — the registry is an index, the file is the truth",
+          "'consumes' is half the contract and the half that gets skipped. Every app declaring its dependencies in the same field of the same file at the same path turns 'who breaks if I change this?' from an email to everyone into a sweep. Each dependency carries degradesTo — what the app does when it is missing, stale, or an unknown version. An integration with no answer to that is not finished",
+          "Four shapes, chosen deliberately: published dataset (the default — a self-describing JSON snapshot, seed-only in the deploy script), published list, event feed (append-only, consumers hold their own cursors and never write back), and request queue. Power Automate remains the escape hatch for genuinely synchronous calls, with its trigger URL treated as the bearer secret it is",
+          "The request queue is a list that behaves like an API: a state machine of Pending / Claimed / Succeeded / Failed / Expired / Rejected, one writer per transition, response written back on the same item, correlation id as the idempotency key so a repeat returns the first result instead of doing the work twice",
+          "Claiming a request is the Worker Pool's conditional write, unchanged and for the same reason: MERGE with If-Match on the etag captured at read — one caller gets 204, the rest get 412, and 412 is the system working. The fencing guard and the code-catalog rule (Operation is a key into reviewed functions; nothing from a payload becomes code or a path) carry over intact",
+          "Identity and authorization (fixed), the pattern's most expensive mistake: the provider executes as itself, so a request queue hands every writer the provider's reach and is a privilege boundary. The requester is the Author SharePoint stamped, never a RequestedBy field, and authorization is re-checked at processing time against a list the provider controls — so a grant revoked after submission is seen. This generalizes the platform's own self-service enablement service, which has run exactly this way since 2026-08-25",
+          "Compatibility rules (fixed): additive only within a version; consumers are tolerant readers; a breaking change is a new version published alongside the old with a deprecation date and a registry sweep for who to tell. Never repurpose a field — changing what a name means while the name and type stay put yields confidently wrong data for months, where a deletion would have failed loudly on the first read. SchemaVersion is stamped on the row, not only in the contract, because records outlive it",
+          "Two verifications every implementation ships, the counterpart to the Worker Pool's race proof: a contract check at startup that turns a future breaking change into a specific message naming app, publication and versions rather than silent bad data, and a replay proof showing a duplicated event or correlation id leaves consumer state identical",
+          "Cross-site mechanics stated once so they stop being rediscovered: one tenant means one origin and no CORS work, a write into another site needs a digest from THAT web, security trimming still applies per user so a narrowly-granted publication looks broken to some people and not others, and search rolls up across sites but lags the index by minutes to hours — discovery and reporting only, never a workflow's read path",
+          "Freshness is displayed, not hidden: any UI showing another app's data shows its source and age, degrades to the declared fallback with a message naming the other app, and polls on the contract's interval with jitter. There are no cross-app transactions — one app owns the truth and the other reconciles"
         ]
       }
     ]

@@ -9,7 +9,7 @@
       },
       {
         "title": "Guestbook",
-        "description": "Demonstrates using SharePoint Lists as a database — auto-provisions its list and custom fields on first run, creates entries through a validated form, and renders them with live search. Single-file app styled with the sample design system.",
+        "description": "Demonstrates using SharePoint Lists as a database — auto-provisions its list and custom fields on first run, creates entries through a validated form, and renders them with live search. Single-file app styled with the Contoso design system.",
         "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/guestbook.aspx"
       },
       {
@@ -25,12 +25,12 @@
       {
         "title": "Markdown File Viewer",
         "description": "An artifact that renders a Markdown file as formatted HTML — headings, code blocks, tables, and inline styles — entirely client-side with no dependencies.",
-        "url": "https://claude.ai/artifacts/<your-shared-artifact-id>"
+        "url": "https://claude.ai/artifacts/latest/<your-shared-artifact-id>"
       },
       {
         "title": "JSON Viewer",
         "description": "An artifact that renders arbitrary JSON as a collapsible, syntax-highlighted tree — useful for exploring API responses and data structures.",
-        "url": "https://claude.ai/artifacts/<your-shared-artifact-id>"
+        "url": "https://claude.ai/artifacts/latest/<your-shared-artifact-id>"
       }
     ]
   },
@@ -43,8 +43,8 @@
         "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/csv-merge-report"
       },
       {
-        "title": "Data Explorer",
-        "description": "Pattern C (Streamlit) — an interactive localhost dashboard over a tabular dataset with upload, filters, metrics, charts, and CSV download. Demonstrates the self-bootstrapping launcher, st.session_state, and localhost-only binding.",
+        "title": "Parts Data Explorer",
+        "description": "Pattern C (Streamlit) — an interactive localhost dashboard over parts-order data with upload, filters, metrics, charts, and CSV download. Demonstrates the self-bootstrapping launcher, st.session_state, and localhost-only binding.",
         "url": "https://contoso.sharepoint.com/sites/euda-sample/Sample%20Sites/samples/data-explorer"
       },
       {
