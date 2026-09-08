@@ -12,7 +12,7 @@ Thanks for your interest. This kit is meant to be copied and adapted — most "c
 
 1. Branch from `main`.
 2. Make your change. For a pattern change, follow the dual-bump rule (update `versions.json` *and* the matching `*_PATTERN.md` / `*_PROMPT.md` version headers).
-3. Run the pre-publish scan (see the anonymization plan) — it must come back clean.
+3. Run the anonymization scan — `pwsh -NoProfile -File deploy/Test-Anonymization.ps1` — and make sure it exits 0. See [the anonymization plan](docs/anonymization-plan.md) for what it checks.
 4. Open a PR. Significant structural or publication decisions get an ADR under [`docs/decisions/`](docs/decisions/).
 
 ## Conventions

@@ -4,7 +4,7 @@ A kit of **development patterns, ready-made AI prompts, and sample apps** for bu
 
 This file is the **canonical AI context** for the repo. `CLAUDE.md` imports it via `@AGENTS.md`; any other tool/pointer file must carry **no unique content** — update this file only.
 
-> **Status:** This repo is the public, de-branded version of a private internal platform; content was ported per [docs/anonymization-plan.md](docs/anonymization-plan.md). All org-specific identifiers use Contoso placeholders. Not yet pushed to a public remote — run the pre-publish scan in the plan before doing so.
+> **Status:** This repo is the public, de-branded version of a private internal platform; content was ported per [docs/anonymization-plan.md](docs/anonymization-plan.md). All org-specific identifiers use Contoso placeholders. It is published at https://github.com/securited/m365-citizen-dev-kit — the anonymization scan (`deploy/Test-Anonymization.ps1`) is an ongoing gate: run it before every push.
 
 ## Folder map
 
@@ -13,7 +13,7 @@ This file is the **canonical AI context** for the repo. `CLAUDE.md` imports it v
 | `README.md`, `AGENTS.md`, `CLAUDE.md` | Front door + canonical AI context | n/a |
 | `patterns/` | One set per pattern: guide (`*_PATTERN.md`), starter prompt (`*_PROMPT.md`), published SharePoint page (`*_PATTERN.aspx`). Four core patterns (SharePoint App, Claude Artifacts, Packaged Python, Worker Pool) + two supporting (SharePoint Permissions & Auditing, Storage Shape & Lifecycle). Plus the hub `DEVELOPMENT_PATTERNS.aspx` and its `DEVELOPMENT_PATTERNS_data/` (`samples.json`, `versions.json`) | Yes — to a SharePoint library |
 | `samples/` | Sample apps: SharePoint `.aspx` demos + `_data/` companions, and single-file Python apps (`app.py` + `launch.cmd` + `README.md`), incl. the `migrate-existing-app` example | Yes |
-| `deploy/` | PnP.PowerShell script that syncs `patterns/` + `samples/` to a SharePoint document library | No |
+| `deploy/` | `Deploy-SampleLibrary.ps1` syncs `patterns/` + `samples/` to a SharePoint document library; `Test-Anonymization.ps1` is the pre-push anonymization gate | No |
 | `.claude/` | Local dev: `serve.ps1` static preview server, `launch.json` run configs | No |
 | `docs/` | Human docs, plans, and ADRs (`docs/decisions/`) | No |
 
@@ -22,6 +22,9 @@ Hard rules: this is a **public** repo — never commit a real tenant URL, owner 
 ## Commands
 
 ```powershell
+# Anonymization gate — run before EVERY push to the public remote; non-zero exit = do not push
+pwsh -NoProfile -File deploy/Test-Anonymization.ps1
+
 # Preview SharePoint .aspx + _data shells locally (static server; serves repo root)
 pwsh -NoProfile -File .claude/serve.ps1 -Port 7432
 
@@ -31,6 +34,8 @@ uv run samples/<app>/app.py
 # Deploy patterns + samples to a SharePoint library (dry run first; needs PNP_CLIENT_ID)
 deploy/Deploy-SampleLibrary.ps1 -WhatIf
 ```
+
+`Test-Anonymization.ps1` scans every **git-tracked** file and has two halves. Structural detectors live in the script and flag the *shape* of a leaked identifier — a `*.sharepoint.com` host outside the placeholder set, an email outside the placeholder domains, a GUID (Entra client-id shape), a connection-string host that isn't a placeholder, and files that must never be tracked (`.DS_Store`, `.claude/settings.local.json`, anything under `.private/`). The second half greps a literal org-token list at `.private/org-markers.txt` — one regex per line, gitignored, kept only in the maintainer's private runbook, never in this public repo. Exit **0** = clean, **1** = findings (fix before pushing), **2** = gate incomplete because the marker list is missing; pass `-NoMarkerFile` to accept a structural-only scan deliberately.
 
 The deploy script ships **no** built-in Entra app id — pass `-PnPClientId <guid>` or set `PNP_CLIENT_ID`. `.aspx` shell uploads need a custom-script enablement window (24h, the script opens it); `_data/` file updates do not.
 
@@ -45,7 +50,7 @@ No build-generated files. If a section is empty after a change, state "None".
 
 ## Conventions (required)
 
-- **Public + anonymized.** All org-specific identifiers are Contoso placeholders (`contoso.sharepoint.com` / `Contoso` / `<your-...>`). A pre-publish grep for org markers (see the plan) must come back clean before any push.
+- **Public + anonymized.** All org-specific identifiers are Contoso placeholders (`contoso.sharepoint.com` / `Contoso` / `<your-...>`). Before **every** push, run `pwsh -NoProfile -File deploy/Test-Anonymization.ps1`; it must exit 0. Never fix a finding by widening the script's allowlists — replace the identifier with a placeholder.
 - **Shell + Data (SharePoint apps)** — the `.aspx` shell holds **boot logic only** (asset loading, canonical helpers, loading/error UI) and no feature code or app state; there is no size limit, but reference shells weigh ~6–8 KB and past ~15 KB logic has leaked in. Feature code, CSS, HTML, and JSON live in `<app>_data/`, so most updates avoid the custom-script enablement window. Each `.aspx` fetches its companion files from its own library folder (`PAGE_DIR`-relative), so a page and its `_data/` must stay co-located.
 - **Module manifest (SharePoint apps)** — feature modules are listed in `<app>_data/manifest.json` and loaded in order by `app.js`; `FALLBACK_MODULES` in `app.js` must match that list exactly, and every named module must exist on disk (the deploy script pre-flights this). Adding a module = edit the manifest + upload the file; the shell never changes.
 - **One folder per Python app** — exactly `app.py` (PEP 723 header), `launch.cmd` (canonical launcher, copied verbatim), `README.md` (owner, pattern, last-reviewed date). Dependencies declared only in the PEP 723 block.

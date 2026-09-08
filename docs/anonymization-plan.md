@@ -5,10 +5,12 @@ document records **how** the content was de-branded for public release and the
 rules that keep it clean — without reproducing any of the source's
 organization-specific identifiers (that would defeat the purpose).
 
-> The full migration runbook — including the literal source identifiers, the
-> exact substitution table, and the executable pre-publish scan — is kept
-> **private by the maintainer** (outside this repo). This published note is the
-> method and the contributor-facing rules only.
+> The full migration runbook — including the literal source identifiers and the
+> exact substitution table — is kept **private by the maintainer** (outside this
+> repo). The scan itself ships here as
+> [`deploy/Test-Anonymization.ps1`](../deploy/Test-Anonymization.ps1); only its
+> literal token list stays private. This published note is the method and the
+> contributor-facing rules only.
 
 ---
 
@@ -17,7 +19,7 @@ organization-specific identifiers (that would defeat the purpose).
 1. **Reusable platform content ships; business artifacts don't.** The patterns, prompts, sample apps, and deploy tooling are the product. App-specific data (internal reports, development transcripts) is not.
 2. **De-brand in prose, not just in config.** Brand and tenant references were woven through guide text, so every ported file was read and de-branded, not just grep-replaced.
 3. **No embedded secrets.** The reusable content carries no passwords, keys, or tokens by design — apps authenticate as the running user. The de-branding surface was *identifiers*: brand name, tenant URLs, an Entra client-id, internal hostnames, owner emails, and local machine paths.
-4. **The scan is a gate, not a step.** A pre-publish scan for organization markers must come back clean before anything is pushed to a public remote.
+4. **The scan is a gate, not a step.** The anonymization scan (§5) must come back clean before anything is pushed to the public remote — before every push, not just the first.
 
 ## 2. Naming convention
 
@@ -50,16 +52,30 @@ The upstream kept everything flat in one deploy folder. Here it's split into int
 - `samples/` — each sample `.aspx` keeps its `_data/` companion beside it; Python apps each in their own folder.
 - `deploy/Deploy-SampleLibrary.ps1` syncs `patterns/` + `samples/` into a SharePoint document library, preserving structure.
 
-## 5. The pre-publish scan (gate)
+## 5. The anonymization scan (gate)
 
-Before any push to a public remote, scan the whole tree for organization markers:
-the brand name, the tenant host and admin host, the Entra client-id, internal
-SQL hostnames, internal database/schema/view names, and owner emails. The
-**exact literal token list lives in the maintainer's private runbook**, not in
-this public file. The scan must return zero hits (excluding the running user's
-own public GitHub handle in `CODEOWNERS`). Also confirm no OS noise
-(`.DS_Store`), no local settings (`.claude/settings.local.json`), and no
-`.private/` content is staged.
+Before **every** push to the public remote:
+
+```powershell
+pwsh -NoProfile -File deploy/Test-Anonymization.ps1
+```
+
+It scans every git-tracked file for organization markers — the brand name, the
+tenant host and admin host, the Entra client-id, internal SQL hostnames,
+internal database/schema/view names, and owner emails — plus repo hygiene: no
+OS noise (`.DS_Store`, `Thumbs.db`), no local settings
+(`.claude/settings.local.json`), and no `.private/` content tracked.
+
+The scan has two halves:
+
+- **Structural detectors**, defined in the script. They match the *shape* of a leaked identifier rather than any literal value — which is what lets the scanner itself be published: a `*.sharepoint.com` host outside the placeholder set, an email outside the placeholder domains, a GUID (Entra client-id shape), and a connection-string host that isn't a placeholder. The placeholder vocabulary in §2 is the allowlist. Fix a finding by replacing the identifier with a placeholder — never by widening an allowlist.
+- **The literal token list**, read from `.private/org-markers.txt` (one regex per line, `#` starts a comment). `.private/` is gitignored; this list belongs to the maintainer's private runbook and must never be committed.
+
+Exit codes: **0** clean, **1** findings — do not push, **2** gate incomplete
+because the marker list is missing (pass `-NoMarkerFile` to accept a
+structural-only scan deliberately). The maintainer's own public GitHub handle in
+[`CODEOWNERS`](../CODEOWNERS) is not a finding: it is a `@handle`, not an
+`owner@domain` email, so the email detector never matches it.
 
 ## 6. Contributor rules
 
@@ -69,6 +85,6 @@ These are enforced going forward (see [`CONTRIBUTING.md`](../CONTRIBUTING.md) an
 - No secrets in any file — apps authenticate as the running user.
 - If you spot a leaked identifier, report it per `SECURITY.md` rather than opening a public issue.
 
-## 7. Open item
+## 7. Status
 
-- **Public remote** — created at publication time. Run the pre-publish scan immediately before the first push.
+- **Public remote** — created; the kit is published at https://github.com/securited/m365-citizen-dev-kit. The scan in §5 is an ongoing gate run before every push, not a one-time publication step.
